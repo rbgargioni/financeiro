@@ -12,6 +12,8 @@ import {
   UserCog,
   Settings,
   Wallet2,
+  Package,
+  ArrowLeftRight,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +25,8 @@ const navItems = [
   { href: "/dashboard/fluxo-de-caixa", label: "Fluxo de Caixa", icon: Wallet },
   { href: "/dashboard/categorias", label: "Categorias", icon: Tags },
   { href: "/dashboard/clientes-fornecedores", label: "Clientes e Fornecedores", icon: Users2 },
+  { href: "/dashboard/produtos", label: "Produtos", icon: Package },
+  { href: "/dashboard/movimentacoes-estoque", label: "Movimentações de Estoque", icon: ArrowLeftRight },
   { href: "/dashboard/usuarios", label: "Usuários", icon: UserCog },
   { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings },
 ];

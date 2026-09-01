@@ -50,5 +50,15 @@ service cloud.firestore {
       allow read, update, delete: if isSuperAdmin() || belongsToCompany(resource.data.companyId);
       allow create: if isSuperAdmin() || belongsToCompany(request.resource.data.companyId);
     }
+
+    match /products/{id} {
+      allow read, update, delete: if isSuperAdmin() || belongsToCompany(resource.data.companyId);
+      allow create: if isSuperAdmin() || belongsToCompany(request.resource.data.companyId);
+    }
+
+    match /stockMovements/{id} {
+      allow read, update, delete: if isSuperAdmin() || belongsToCompany(resource.data.companyId);
+      allow create: if isSuperAdmin() || belongsToCompany(request.resource.data.companyId);
+    }
   }
 }

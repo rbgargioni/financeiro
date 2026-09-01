@@ -66,3 +66,28 @@ export interface Contact {
   email: string;
   phone: string;
 }
+
+export interface Product {
+  id: string;
+  companyId: string;
+  sku: string;
+  name: string;
+  category: string;
+  unit: string; // "un", "kg", "cx", etc.
+  quantity: number; // current stock, kept in sync by StockMovements
+  unitCost: number;
+  unitPrice: number;
+  minStock: number;
+}
+
+export type StockMovementType = "in" | "out";
+
+export interface StockMovement {
+  id: string;
+  companyId: string;
+  productId: string;
+  type: StockMovementType;
+  quantity: number;
+  reason: string;
+  date: string; // ISO date
+}
