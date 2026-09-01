@@ -12,14 +12,9 @@ export interface SeedUser {
   role: UserRole;
 }
 
+// The platform super-admin is provisioned separately (not through this seed
+// list) — it's a real account, not shared/public demo data.
 export const users: SeedUser[] = [
-  {
-    companyId: null,
-    name: "Rafael (Plataforma)",
-    email: "admin@plataforma.com",
-    password: "senha123",
-    role: "super_admin",
-  },
   {
     companyId: "company-paonosso",
     name: "Marcos Andrade",

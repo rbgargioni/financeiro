@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 
 const DEMO_ACCOUNTS = [
-  { label: "Super admin da plataforma", email: "admin@plataforma.com" },
   { label: "Empresa em teste grátis", email: "contato@paonosso.com.br" },
   { label: "Empresa com assinatura ativa", email: "financeiro@rotacerta.com.br" },
   { label: "Empresa com teste expirado", email: "contato@boavista.com.br" },
