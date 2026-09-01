@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Wallet2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { friendlyAuthError } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 
@@ -31,7 +32,7 @@ export default function LoginPage() {
       const user = await login(email, password);
       router.push(user.role === "super_admin" ? "/admin" : "/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível entrar.");
+      setError(friendlyAuthError(err));
     } finally {
       setSubmitting(false);
     }

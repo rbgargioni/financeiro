@@ -1,21 +1,31 @@
-import { getStore, mutateStore, delay } from "./store";
+import { collection, doc, getDocs, addDoc, deleteDoc, query, where, DocumentData } from "firebase/firestore";
+import { db } from "../firebase";
 import { Contact } from "../types";
 
+const contactsRef = collection(db, "contacts");
+
+function toContact(id: string, data: DocumentData): Contact {
+  return {
+    id,
+    companyId: data.companyId,
+    name: data.name,
+    type: data.type,
+    document: data.document,
+    email: data.email,
+    phone: data.phone,
+  };
+}
+
 export async function listContacts(companyId: string): Promise<Contact[]> {
-  return delay(getStore().contacts.filter((c) => c.companyId === companyId));
+  const snap = await getDocs(query(contactsRef, where("companyId", "==", companyId)));
+  return snap.docs.map((d) => toContact(d.id, d.data()));
 }
 
 export async function createContact(input: Omit<Contact, "id">): Promise<Contact> {
-  const contact: Contact = { ...input, id: `contact-${Date.now()}-${Math.round(Math.random() * 1000)}` };
-  mutateStore((store) => {
-    store.contacts.push(contact);
-  });
-  return delay(contact);
+  const ref = await addDoc(contactsRef, input);
+  return { id: ref.id, ...input };
 }
 
 export async function deleteContact(id: string): Promise<void> {
-  mutateStore((store) => {
-    store.contacts = store.contacts.filter((c) => c.id !== id);
-  });
-  return delay(undefined);
+  await deleteDoc(doc(db, "contacts", id));
 }

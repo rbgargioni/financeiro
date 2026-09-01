@@ -1,0 +1,54 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && myProfile().role == 'super_admin';
+    }
+
+    function belongsToCompany(companyId) {
+      return isSignedIn() && myProfile().companyId == companyId;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin() || belongsToCompany(resource.data.companyId));
+      // A brand-new signup writes its own profile (request.auth.uid == userId); an
+      // owner/admin adding a teammate writes a profile for someone else's uid, which
+      // is only allowed when the new profile's companyId matches their own.
+      allow create: if isSignedIn() && (request.auth.uid == userId || belongsToCompany(request.resource.data.companyId) || isSuperAdmin());
+      allow update: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow delete: if isSuperAdmin();
+    }
+
+    match /companies/{companyId} {
+      allow read: if isSuperAdmin() || belongsToCompany(companyId);
+      allow create: if isSignedIn();
+      allow update: if isSuperAdmin() || belongsToCompany(companyId);
+      allow delete: if isSuperAdmin();
+    }
+
+    match /transactions/{id} {
+      allow read, update, delete: if isSuperAdmin() || belongsToCompany(resource.data.companyId);
+      allow create: if isSuperAdmin() || belongsToCompany(request.resource.data.companyId);
+    }
+
+    match /categories/{id} {
+      allow read, update, delete: if isSuperAdmin() || belongsToCompany(resource.data.companyId);
+      allow create: if isSuperAdmin() || belongsToCompany(request.resource.data.companyId);
+    }
+
+    match /contacts/{id} {
+      allow read, update, delete: if isSuperAdmin() || belongsToCompany(resource.data.companyId);
+      allow create: if isSuperAdmin() || belongsToCompany(request.resource.data.companyId);
+    }
+  }
+}

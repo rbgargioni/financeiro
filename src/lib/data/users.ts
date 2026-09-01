@@ -1,23 +1,31 @@
-import { getStore, mutateStore, delay } from "./store";
+import { collection, doc, getDoc, getDocs, query, where, setDoc, DocumentData } from "firebase/firestore";
+import { db } from "../firebase";
 import { AppUser } from "../types";
 
+const usersRef = collection(db, "users");
+
+function toUser(id: string, data: DocumentData): AppUser {
+  return {
+    id,
+    companyId: data.companyId ?? null,
+    name: data.name,
+    email: data.email,
+    role: data.role,
+  };
+}
+
 export async function listUsersByCompany(companyId: string): Promise<AppUser[]> {
-  return delay(getStore().users.filter((u) => u.companyId === companyId));
+  const snap = await getDocs(query(usersRef, where("companyId", "==", companyId)));
+  return snap.docs.map((d) => toUser(d.id, d.data()));
 }
 
-export async function getUserByEmail(email: string): Promise<AppUser | undefined> {
-  const normalized = email.trim().toLowerCase();
-  return delay(getStore().users.find((u) => u.email.toLowerCase() === normalized));
+export async function getUserById(uid: string): Promise<AppUser | undefined> {
+  const snap = await getDoc(doc(db, "users", uid));
+  return snap.exists() ? toUser(snap.id, snap.data()) : undefined;
 }
 
-export async function getUserById(id: string): Promise<AppUser | undefined> {
-  return delay(getStore().users.find((u) => u.id === id));
-}
-
-export async function createUser(input: Omit<AppUser, "id">): Promise<AppUser> {
-  const user: AppUser = { ...input, id: `user-${Date.now()}-${Math.round(Math.random() * 1000)}` };
-  mutateStore((store) => {
-    store.users.push(user);
-  });
-  return delay(user);
+/** Writes the Firestore profile doc for a uid that already exists in Firebase Auth. */
+export async function createUserProfile(uid: string, input: Omit<AppUser, "id">): Promise<AppUser> {
+  await setDoc(doc(db, "users", uid), input);
+  return { id: uid, ...input };
 }

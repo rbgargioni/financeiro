@@ -8,12 +8,12 @@ import {
   useMemo,
   useState,
 } from "react";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { AppUser, Company } from "@/lib/types";
 import { getUserById } from "@/lib/data/users";
 import { getCompany } from "@/lib/data/companies";
-import { login as loginRequest } from "@/lib/data/auth";
-
-const SESSION_KEY = "financeiro_session_user_id";
+import { login as loginRequest, logout as logoutRequest } from "@/lib/data/auth";
 
 interface AuthContextValue {
   user: AppUser | null;
@@ -42,36 +42,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    async function restoreSession() {
-      const storedId = window.localStorage.getItem(SESSION_KEY);
-      if (!storedId) {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (!firebaseUser) {
+        setUser(null);
+        setCompany(null);
         setLoading(false);
         return;
       }
-      const restoredUser = await getUserById(storedId);
-      if (!active) return;
-      if (restoredUser) {
-        setUser(restoredUser);
-        await loadCompanyFor(restoredUser);
-      } else {
-        window.localStorage.removeItem(SESSION_KEY);
-      }
-      if (active) setLoading(false);
-    }
-    restoreSession();
-    return () => {
-      active = false;
-    };
+      const profile = await getUserById(firebaseUser.uid);
+      setUser(profile ?? null);
+      await loadCompanyFor(profile ?? null);
+      setLoading(false);
+    });
+    return unsubscribe;
   }, [loadCompanyFor]);
 
   const login = useCallback(
     async (email: string, password: string) => {
       const loggedInUser = await loginRequest(email, password);
-      if (!loggedInUser) {
-        throw new Error("E-mail ou senha inválidos.");
-      }
-      window.localStorage.setItem(SESSION_KEY, loggedInUser.id);
       setUser(loggedInUser);
       await loadCompanyFor(loggedInUser);
       return loggedInUser;
@@ -81,7 +69,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setSessionUser = useCallback(
     (newUser: AppUser) => {
-      window.localStorage.setItem(SESSION_KEY, newUser.id);
       setUser(newUser);
       loadCompanyFor(newUser);
     },
@@ -89,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    window.localStorage.removeItem(SESSION_KEY);
+    logoutRequest();
     setUser(null);
     setCompany(null);
   }, []);

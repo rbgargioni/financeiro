@@ -1,36 +1,40 @@
-import { getStore, mutateStore, delay } from "./store";
+import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, DocumentData } from "firebase/firestore";
+import { db } from "../firebase";
 import { Transaction } from "../types";
 
+const transactionsRef = collection(db, "transactions");
+
+function toTransaction(id: string, data: DocumentData): Transaction {
+  return {
+    id,
+    companyId: data.companyId,
+    type: data.type,
+    description: data.description,
+    amount: data.amount,
+    dueDate: data.dueDate,
+    paidAt: data.paidAt ?? null,
+    status: data.status,
+    categoryId: data.categoryId,
+    contactId: data.contactId,
+  };
+}
+
 export async function listTransactions(companyId: string): Promise<Transaction[]> {
-  return delay(
-    getStore()
-      .transactions.filter((t) => t.companyId === companyId)
-      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-  );
+  const snap = await getDocs(query(transactionsRef, where("companyId", "==", companyId)));
+  return snap.docs
+    .map((d) => toTransaction(d.id, d.data()))
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 }
 
 export async function createTransaction(input: Omit<Transaction, "id">): Promise<Transaction> {
-  const tx: Transaction = { ...input, id: `tx-${Date.now()}-${Math.round(Math.random() * 1000)}` };
-  mutateStore((store) => {
-    store.transactions.push(tx);
-  });
-  return delay(tx);
+  const ref = await addDoc(transactionsRef, input);
+  return { id: ref.id, ...input };
 }
 
 export async function markTransactionPaid(id: string): Promise<void> {
-  mutateStore((store) => {
-    const tx = store.transactions.find((t) => t.id === id);
-    if (tx) {
-      tx.status = "paid";
-      tx.paidAt = new Date().toISOString();
-    }
-  });
-  return delay(undefined);
+  await updateDoc(doc(db, "transactions", id), { status: "paid", paidAt: new Date().toISOString() });
 }
 
 export async function deleteTransaction(id: string): Promise<void> {
-  mutateStore((store) => {
-    store.transactions = store.transactions.filter((t) => t.id !== id);
-  });
-  return delay(undefined);
+  await deleteDoc(doc(db, "transactions", id));
 }

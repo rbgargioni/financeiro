@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Wallet2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { signUpCompany } from "@/lib/data/auth";
+import { friendlyAuthError } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Select } from "@/components/ui/Input";
 
@@ -41,7 +42,7 @@ export default function SignupPage() {
       setSessionUser(user);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível criar sua conta.");
+      setError(friendlyAuthError(err));
       setSubmitting(false);
     }
   }

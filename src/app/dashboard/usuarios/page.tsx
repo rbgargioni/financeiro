@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { listUsersByCompany, createUser } from "@/lib/data/users";
+import { listUsersByCompany } from "@/lib/data/users";
+import { createCompanyUser } from "@/lib/data/auth";
 import { AppUser, UserRole } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -50,15 +51,15 @@ export default function UsuariosPage() {
     if (!company) return;
     setError(null);
     try {
-      await createUser({ companyId: company.id, name, email, password, role });
+      await createCompanyUser({ companyId: company.id, name, email, password, role });
       setName("");
       setEmail("");
       setPassword("");
       setRole("member");
       setModalOpen(false);
       await reload();
-    } catch {
-      setError("Não foi possível adicionar este usuário.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível adicionar este usuário.");
     }
   }
 
@@ -125,6 +126,7 @@ export default function UsuariosPage() {
               id="user-password"
               type="text"
               required
+              minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

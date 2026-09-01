@@ -23,11 +23,10 @@ export interface Company {
 }
 
 export interface AppUser {
-  id: string;
+  id: string; // Firebase Auth uid
   companyId: string | null; // null only for super_admin
   name: string;
   email: string;
-  password: string; // mock only, plain text for demo login
   role: UserRole;
 }
 

@@ -1,21 +1,23 @@
-import { getStore, mutateStore, delay } from "./store";
+import { collection, doc, getDocs, addDoc, deleteDoc, query, where, DocumentData } from "firebase/firestore";
+import { db } from "../firebase";
 import { Category } from "../types";
 
+const categoriesRef = collection(db, "categories");
+
+function toCategory(id: string, data: DocumentData): Category {
+  return { id, companyId: data.companyId, name: data.name, type: data.type };
+}
+
 export async function listCategories(companyId: string): Promise<Category[]> {
-  return delay(getStore().categories.filter((c) => c.companyId === companyId));
+  const snap = await getDocs(query(categoriesRef, where("companyId", "==", companyId)));
+  return snap.docs.map((d) => toCategory(d.id, d.data()));
 }
 
 export async function createCategory(input: Omit<Category, "id">): Promise<Category> {
-  const category: Category = { ...input, id: `cat-${Date.now()}-${Math.round(Math.random() * 1000)}` };
-  mutateStore((store) => {
-    store.categories.push(category);
-  });
-  return delay(category);
+  const ref = await addDoc(categoriesRef, input);
+  return { id: ref.id, ...input };
 }
 
 export async function deleteCategory(id: string): Promise<void> {
-  mutateStore((store) => {
-    store.categories = store.categories.filter((c) => c.id !== id);
-  });
-  return delay(undefined);
+  await deleteDoc(doc(db, "categories", id));
 }

@@ -1,8 +1,19 @@
-import { AppUser } from "@/lib/types";
+import { UserRole } from "@/lib/types";
 
-export const users: AppUser[] = [
+/**
+ * Seed-only shape: `password` is used to create the real Firebase Auth account
+ * (scripts/seed.ts), it isn't part of the app's AppUser/Firestore profile shape.
+ */
+export interface SeedUser {
+  companyId: string | null;
+  name: string;
+  email: string;
+  password: string;
+  role: UserRole;
+}
+
+export const users: SeedUser[] = [
   {
-    id: "user-superadmin",
     companyId: null,
     name: "Rafael (Plataforma)",
     email: "admin@plataforma.com",
@@ -10,7 +21,6 @@ export const users: AppUser[] = [
     role: "super_admin",
   },
   {
-    id: "user-paonosso-owner",
     companyId: "company-paonosso",
     name: "Marcos Andrade",
     email: "contato@paonosso.com.br",
@@ -18,7 +28,6 @@ export const users: AppUser[] = [
     role: "owner",
   },
   {
-    id: "user-rotacerta-owner",
     companyId: "company-rotacerta",
     name: "Fernanda Lima",
     email: "financeiro@rotacerta.com.br",
@@ -26,7 +35,6 @@ export const users: AppUser[] = [
     role: "owner",
   },
   {
-    id: "user-rotacerta-member",
     companyId: "company-rotacerta",
     name: "João Pedro Souza",
     email: "joao@rotacerta.com.br",
@@ -34,7 +42,6 @@ export const users: AppUser[] = [
     role: "member",
   },
   {
-    id: "user-boavista-owner",
     companyId: "company-boavista",
     name: "Carla Nogueira",
     email: "contato@boavista.com.br",
