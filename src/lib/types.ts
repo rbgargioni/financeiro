@@ -44,6 +44,7 @@ export interface Transaction {
   status: TransactionStatus;
   categoryId: string;
   contactId: string;
+  recurrenceId?: string | null; // shared by every occurrence generated from the same recurring launch
 }
 
 export type CategoryType = "receivable" | "payable";

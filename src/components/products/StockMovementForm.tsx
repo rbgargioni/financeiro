@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { Product, StockMovementType } from "@/lib/types";
+import { dateInputToIso, todayDateInputValue } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Select } from "@/components/ui/Input";
 
@@ -19,14 +20,12 @@ interface StockMovementFormProps {
   onCancel: () => void;
 }
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
-
 export function StockMovementForm({ products, onSubmit, onCancel }: StockMovementFormProps) {
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [type, setType] = useState<StockMovementType>("in");
   const [quantity, setQuantity] = useState("1");
   const [reason, setReason] = useState("");
-  const [date, setDate] = useState(todayIso());
+  const [date, setDate] = useState(todayDateInputValue());
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,7 +46,7 @@ export function StockMovementForm({ products, onSubmit, onCancel }: StockMovemen
         type,
         quantity: qty,
         reason,
-        date: new Date(date).toISOString(),
+        date: dateInputToIso(date),
       });
     } finally {
       setSubmitting(false);

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Check, Trash2 } from "lucide-react";
+import { Plus, Check, Trash2, Repeat } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Transaction, TransactionType, TransactionStatus, Category, Contact } from "@/lib/types";
 import { listTransactions, createTransaction, markTransactionPaid, deleteTransaction } from "@/lib/data/transactions";
-import { listCategories } from "@/lib/data/categories";
-import { listContacts } from "@/lib/data/contacts";
+import { listCategories, createCategory } from "@/lib/data/categories";
+import { listContacts, createContact } from "@/lib/data/contacts";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { generateRecurringDueDates } from "@/lib/recurrence";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status-labels";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -89,19 +90,43 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
 
   async function handleCreate(values: TransactionFormValues) {
     if (!company) return;
-    await createTransaction({
+    const base = {
       companyId: company.id,
       type,
       description: values.description,
       amount: values.amount,
-      dueDate: values.dueDate,
       paidAt: null,
-      status: "pending",
+      status: "pending" as const,
       categoryId: values.categoryId,
       contactId: values.contactId,
-    });
+    };
+
+    if (values.recurring && values.recurrenceMonths > 1) {
+      const recurrenceId = `rec-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+      const dueDates = generateRecurringDueDates(values.dueDate, values.recurrenceMonths);
+      for (const dueDate of dueDates) {
+        await createTransaction({ ...base, dueDate, recurrenceId });
+      }
+    } else {
+      await createTransaction({ ...base, dueDate: values.dueDate });
+    }
     setModalOpen(false);
     await reload();
+  }
+
+  async function handleCreateCategory(name: string): Promise<Category> {
+    if (!company) throw new Error("Empresa não carregada.");
+    const category = await createCategory({ companyId: company.id, name, type });
+    setCategories((prev) => [...prev, category]);
+    return category;
+  }
+
+  async function handleCreateContact(name: string): Promise<Contact> {
+    if (!company) throw new Error("Empresa não carregada.");
+    const contactType = type === "receivable" ? "client" : "supplier";
+    const contact = await createContact({ companyId: company.id, name, type: contactType, document: "", email: "", phone: "" });
+    setContacts((prev) => [...prev, contact]);
+    return contact;
   }
 
   async function handleMarkPaid(id: string) {
@@ -166,7 +191,16 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
             {!loading &&
               filtered.map((tx) => (
                 <tr key={tx.id} className="border-b border-slate-50 last:border-0">
-                  <td className="px-5 py-3 text-slate-800">{tx.description}</td>
+                  <td className="px-5 py-3 text-slate-800">
+                    <span className="inline-flex items-center gap-1.5">
+                      {tx.description}
+                      {tx.recurrenceId && (
+                        <span title="Lançamento recorrente" className="shrink-0 text-slate-400">
+                          <Repeat size={13} />
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className="px-5 py-3 text-slate-500">{contactName(tx.contactId)}</td>
                   <td className="px-5 py-3 text-slate-500">{categoryName(tx.categoryId)}</td>
                   <td className="px-5 py-3 text-slate-500">{formatDate(tx.dueDate)}</td>
@@ -221,6 +255,8 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
           contacts={contacts}
           onCancel={() => setModalOpen(false)}
           onSubmit={handleCreate}
+          onCreateCategory={handleCreateCategory}
+          onCreateContact={handleCreateContact}
         />
       </Modal>
     </div>
