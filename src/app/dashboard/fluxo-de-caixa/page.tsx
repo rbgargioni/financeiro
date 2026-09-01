@@ -9,6 +9,8 @@ import { buildWeeklyCashFlow } from "@/lib/reports";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { ExportMenu } from "@/components/ui/ExportMenu";
+import { ExportColumn } from "@/lib/export";
 import { CashFlowChart } from "@/components/charts/CashFlowChart";
 
 export default function FluxoDeCaixaPage() {
@@ -45,11 +47,36 @@ export default function FluxoDeCaixaPage() {
     });
   }, [transactions]);
 
+  const exportColumns: ExportColumn[] = [
+    { header: "Data", key: "date" },
+    { header: "Descrição", key: "description" },
+    { header: "Contato", key: "contact" },
+    { header: "Tipo", key: "type" },
+    { header: "Valor", key: "amount" },
+    { header: "Saldo acumulado", key: "running" },
+  ];
+  const exportRows = useMemo(
+    () =>
+      rows.map(({ tx, running }) => ({
+        date: formatDate(tx.paidAt ?? tx.dueDate),
+        description: tx.description,
+        contact: contactName(tx.contactId),
+        type: tx.type === "receivable" ? "Entrada" : "Saída",
+        amount: `${tx.type === "receivable" ? "+" : "-"} ${formatCurrency(tx.amount)}`,
+        running: formatCurrency(running),
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, contacts]
+  );
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">Fluxo de Caixa</h1>
-        <p className="text-sm text-slate-500">Entradas e saídas realizadas, com saldo acumulado.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">Fluxo de Caixa</h1>
+          <p className="text-sm text-slate-500">Entradas e saídas realizadas, com saldo acumulado.</p>
+        </div>
+        <ExportMenu filename="fluxo-de-caixa" title="Fluxo de Caixa" columns={exportColumns} rows={exportRows} />
       </div>
 
       <Card>

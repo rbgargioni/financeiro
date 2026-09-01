@@ -12,6 +12,8 @@ import { STATUS_LABEL, STATUS_TONE } from "@/lib/status-labels";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
+import { ExportMenu } from "@/components/ui/ExportMenu";
+import { ExportColumn } from "@/lib/export";
 import { TransactionForm, TransactionFormValues } from "./TransactionForm";
 
 const FILTERS: { value: TransactionStatus | "all"; label: string }[] = [
@@ -63,6 +65,28 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
   const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? "—";
   const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? "—";
 
+  const exportColumns: ExportColumn[] = [
+    { header: "Descrição", key: "description" },
+    { header: type === "receivable" ? "Cliente" : "Fornecedor", key: "contact" },
+    { header: "Categoria", key: "category" },
+    { header: "Vencimento", key: "dueDate" },
+    { header: "Valor", key: "amount" },
+    { header: "Status", key: "status" },
+  ];
+  const exportRows = useMemo(
+    () =>
+      filtered.map((tx) => ({
+        description: tx.description,
+        contact: contactName(tx.contactId),
+        category: categoryName(tx.categoryId),
+        dueDate: formatDate(tx.dueDate),
+        amount: formatCurrency(tx.amount),
+        status: STATUS_LABEL[tx.status],
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filtered, contacts, categories]
+  );
+
   async function handleCreate(values: TransactionFormValues) {
     if (!company) return;
     await createTransaction({
@@ -97,10 +121,18 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
           <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
           <p className="text-sm text-slate-500">{description}</p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus size={16} />
-          Novo lançamento
-        </Button>
+        <div className="flex gap-2">
+          <ExportMenu
+            filename={type === "receivable" ? "contas-a-receber" : "contas-a-pagar"}
+            title={title}
+            columns={exportColumns}
+            rows={exportRows}
+          />
+          <Button onClick={() => setModalOpen(true)}>
+            <Plus size={16} />
+            Novo lançamento
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-2">

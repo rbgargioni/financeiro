@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { listStockMovements, createStockMovement, deleteStockMovement } from "@/lib/data/stock-movements";
@@ -10,6 +10,8 @@ import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { ExportMenu } from "@/components/ui/ExportMenu";
+import { ExportColumn } from "@/lib/export";
 import { StockMovementForm, StockMovementFormValues } from "@/components/products/StockMovementForm";
 
 export default function MovimentacoesEstoquePage() {
@@ -48,6 +50,26 @@ export default function MovimentacoesEstoquePage() {
     await reload();
   }
 
+  const exportColumns: ExportColumn[] = [
+    { header: "Data", key: "date" },
+    { header: "Produto", key: "product" },
+    { header: "Tipo", key: "type" },
+    { header: "Quantidade", key: "quantity" },
+    { header: "Motivo", key: "reason" },
+  ];
+  const exportRows = useMemo(
+    () =>
+      movements.map((m) => ({
+        date: formatDate(m.date),
+        product: productName(m.productId),
+        type: m.type === "in" ? "Entrada" : "Saída",
+        quantity: `${m.type === "in" ? "+" : "-"} ${m.quantity} ${productUnit(m.productId)}`,
+        reason: m.reason,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [movements, products]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -55,10 +77,18 @@ export default function MovimentacoesEstoquePage() {
           <h1 className="text-xl font-semibold text-slate-900">Movimentações de Estoque</h1>
           <p className="text-sm text-slate-500">Histórico de entradas e saídas de produtos.</p>
         </div>
-        <Button onClick={() => setModalOpen(true)} disabled={products.length === 0}>
-          <Plus size={16} />
-          Nova movimentação
-        </Button>
+        <div className="flex gap-2">
+          <ExportMenu
+            filename="movimentacoes-estoque"
+            title="Movimentações de Estoque"
+            columns={exportColumns}
+            rows={exportRows}
+          />
+          <Button onClick={() => setModalOpen(true)} disabled={products.length === 0}>
+            <Plus size={16} />
+            Nova movimentação
+          </Button>
+        </div>
       </div>
 
       {!loading && products.length === 0 && (

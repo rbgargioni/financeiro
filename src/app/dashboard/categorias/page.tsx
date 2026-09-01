@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { listCategories, createCategory, deleteCategory } from "@/lib/data/categories";
@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { ExportMenu } from "@/components/ui/ExportMenu";
+import { ExportColumn } from "@/lib/export";
 
 export default function CategoriasPage() {
   const { company } = useAuth();
@@ -48,6 +50,15 @@ export default function CategoriasPage() {
   const receivableCategories = categories.filter((c) => c.type === "receivable");
   const payableCategories = categories.filter((c) => c.type === "payable");
 
+  const exportColumns: ExportColumn[] = [
+    { header: "Nome", key: "name" },
+    { header: "Tipo", key: "type" },
+  ];
+  const exportRows = useMemo(
+    () => categories.map((c) => ({ name: c.name, type: c.type === "receivable" ? "Receita" : "Despesa" })),
+    [categories]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -55,10 +66,13 @@ export default function CategoriasPage() {
           <h1 className="text-xl font-semibold text-slate-900">Categorias</h1>
           <p className="text-sm text-slate-500">Organize suas contas a pagar e a receber por categoria.</p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus size={16} />
-          Nova categoria
-        </Button>
+        <div className="flex gap-2">
+          <ExportMenu filename="categorias" title="Categorias" columns={exportColumns} rows={exportRows} />
+          <Button onClick={() => setModalOpen(true)}>
+            <Plus size={16} />
+            Nova categoria
+          </Button>
+        </div>
       </div>
 
       {!loading && (

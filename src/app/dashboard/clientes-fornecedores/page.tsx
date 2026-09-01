@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { listContacts, createContact, deleteContact } from "@/lib/data/contacts";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input, Label, Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { ExportMenu } from "@/components/ui/ExportMenu";
+import { ExportColumn } from "@/lib/export";
 
 const TABS: { value: ContactType | "all"; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -61,6 +63,25 @@ export default function ClientesFornecedoresPage() {
 
   const filtered = tab === "all" ? contacts : contacts.filter((c) => c.type === tab);
 
+  const exportColumns: ExportColumn[] = [
+    { header: "Nome", key: "name" },
+    { header: "Tipo", key: "type" },
+    { header: "Documento", key: "document" },
+    { header: "E-mail", key: "email" },
+    { header: "Telefone", key: "phone" },
+  ];
+  const exportRows = useMemo(
+    () =>
+      filtered.map((c) => ({
+        name: c.name,
+        type: c.type === "client" ? "Cliente" : "Fornecedor",
+        document: c.document,
+        email: c.email,
+        phone: c.phone,
+      })),
+    [filtered]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -68,10 +89,13 @@ export default function ClientesFornecedoresPage() {
           <h1 className="text-xl font-semibold text-slate-900">Clientes e Fornecedores</h1>
           <p className="text-sm text-slate-500">Cadastro de contatos usados nos lançamentos financeiros.</p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Plus size={16} />
-          Novo contato
-        </Button>
+        <div className="flex gap-2">
+          <ExportMenu filename="clientes-fornecedores" title="Clientes e Fornecedores" columns={exportColumns} rows={exportRows} />
+          <Button onClick={() => setModalOpen(true)}>
+            <Plus size={16} />
+            Novo contato
+          </Button>
+        </div>
       </div>
 
       <div className="flex gap-2">

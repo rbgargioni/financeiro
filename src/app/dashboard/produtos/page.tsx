@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { ExportMenu } from "@/components/ui/ExportMenu";
+import { ExportColumn } from "@/lib/export";
 import { ProductForm, ProductFormValues } from "@/components/products/ProductForm";
 
 export default function ProdutosPage() {
@@ -65,6 +67,27 @@ export default function ProdutosPage() {
     await reload();
   }
 
+  const exportColumns: ExportColumn[] = [
+    { header: "SKU", key: "sku" },
+    { header: "Produto", key: "name" },
+    { header: "Categoria", key: "category" },
+    { header: "Estoque", key: "stock" },
+    { header: "Custo", key: "cost" },
+    { header: "Preço", key: "price" },
+  ];
+  const exportRows = useMemo(
+    () =>
+      products.map((p) => ({
+        sku: p.sku,
+        name: p.name,
+        category: p.category,
+        stock: `${p.quantity} ${p.unit}`,
+        cost: formatCurrency(p.unitCost),
+        price: formatCurrency(p.unitPrice),
+      })),
+    [products]
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -72,10 +95,13 @@ export default function ProdutosPage() {
           <h1 className="text-xl font-semibold text-slate-900">Produtos</h1>
           <p className="text-sm text-slate-500">Controle o estoque e o valor dos produtos da sua empresa.</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus size={16} />
-          Novo produto
-        </Button>
+        <div className="flex gap-2">
+          <ExportMenu filename="produtos" title="Produtos" columns={exportColumns} rows={exportRows} />
+          <Button onClick={openCreate}>
+            <Plus size={16} />
+            Novo produto
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
