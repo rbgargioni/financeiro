@@ -14,6 +14,7 @@ import {
   Wallet2,
   Package,
   ArrowLeftRight,
+  Upload,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/dashboard/contas-a-receber", label: "Contas a Receber", icon: ArrowDownCircle },
   { href: "/dashboard/contas-a-pagar", label: "Contas a Pagar", icon: ArrowUpCircle },
   { href: "/dashboard/fluxo-de-caixa", label: "Fluxo de Caixa", icon: Wallet },
+  { href: "/dashboard/importar-extrato", label: "Importar Extrato", icon: Upload },
   { href: "/dashboard/categorias", label: "Categorias", icon: Tags },
   { href: "/dashboard/clientes-fornecedores", label: "Clientes e Fornecedores", icon: Users2 },
   { href: "/dashboard/produtos", label: "Produtos", icon: Package },
