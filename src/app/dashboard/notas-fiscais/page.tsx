@@ -1,19 +1,24 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Upload, FileUp, CheckCircle2, Eye, Trash2, AlertTriangle } from "lucide-react";
+import { Upload, FileUp, CheckCircle2, Eye, Trash2, AlertTriangle, Pencil } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { listInvoices, createInvoice, deleteInvoice } from "@/lib/data/invoices";
-import { Invoice, InvoiceDirection, InvoiceTaxes } from "@/lib/types";
+import { listInvoices, createInvoice, updateInvoiceValues, deleteInvoice } from "@/lib/data/invoices";
+import { listCategories, createCategory } from "@/lib/data/categories";
+import { listContacts, createContact } from "@/lib/data/contacts";
+import { createTransaction, updateTransactionAmount } from "@/lib/data/transactions";
+import { Category, Contact, ContactType, Invoice, InvoiceDirection, InvoiceTaxes, TransactionType } from "@/lib/types";
 import { parseNfeXml, onlyDigits, formatCnpj, ParsedNfe } from "@/lib/nfe";
 import { parseNfePdf } from "@/lib/nfe-pdf";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Input";
+import { Input, Label, Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { ExportColumn } from "@/lib/export";
+
+const NOTAS_FISCAIS_CATEGORY = "Notas Fiscais";
 
 interface ReviewRow {
   key: string;
@@ -50,6 +55,8 @@ function taxTotal(taxes: InvoiceTaxes): number {
 export default function NotasFiscaisPage() {
   const { company } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<InvoiceDirection>("issued");
   const [rows, setRows] = useState<ReviewRow[]>([]);
@@ -57,12 +64,23 @@ export default function NotasFiscaisPage() {
   const [importing, setImporting] = useState(false);
   const [importedCount, setImportedCount] = useState<number | null>(null);
   const [detailsInvoice, setDetailsInvoice] = useState<Invoice | null>(null);
+  const [editingValues, setEditingValues] = useState(false);
+  const [editForm, setEditForm] = useState<{ totalValue: string; taxes: Record<keyof InvoiceTaxes, string> } | null>(
+    null
+  );
+  const [savingValues, setSavingValues] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function reload() {
     if (!company) return;
-    const list = await listInvoices(company.id);
-    setInvoices(list);
+    const [invoiceList, categoryList, contactList] = await Promise.all([
+      listInvoices(company.id),
+      listCategories(company.id),
+      listContacts(company.id),
+    ]);
+    setInvoices(invoiceList);
+    setCategories(categoryList);
+    setContacts(contactList);
     setLoading(false);
   }
 
@@ -130,11 +148,56 @@ export default function NotasFiscaisPage() {
     setError(null);
     try {
       const toImport = rows.filter((r) => r.include && r.parsed);
+      const workingCategories = [...categories];
+      const workingContacts = [...contacts];
+
       for (const row of toImport) {
         const parsed = row.parsed!;
+        const direction = row.direction;
+        const transactionType: TransactionType = direction === "issued" ? "receivable" : "payable";
+        const contactType: ContactType = direction === "issued" ? "client" : "supplier";
+        const counterpartyCnpj = direction === "issued" ? parsed.recipientCnpj : parsed.issuerCnpj;
+        const counterpartyDisplayName =
+          direction === "issued"
+            ? counterpartyLabel(parsed.recipientName, parsed.recipientCnpj)
+            : counterpartyLabel(parsed.issuerName, parsed.issuerCnpj);
+
+        let category = workingCategories.find((c) => c.type === transactionType && c.name === NOTAS_FISCAIS_CATEGORY);
+        if (!category) {
+          category = await createCategory({ companyId: company.id, name: NOTAS_FISCAIS_CATEGORY, type: transactionType });
+          workingCategories.push(category);
+        }
+
+        let contact = counterpartyCnpj
+          ? workingContacts.find((c) => c.type === contactType && onlyDigits(c.document) === counterpartyCnpj)
+          : undefined;
+        if (!contact) {
+          contact = await createContact({
+            companyId: company.id,
+            name: counterpartyDisplayName,
+            type: contactType,
+            document: counterpartyCnpj ? formatCnpj(counterpartyCnpj) : "",
+            email: "",
+            phone: "",
+          });
+          workingContacts.push(contact);
+        }
+
+        const transaction = await createTransaction({
+          companyId: company.id,
+          type: transactionType,
+          description: `Nota fiscal nº ${parsed.number || "s/nº"} — ${counterpartyDisplayName}`,
+          amount: parsed.totalValue,
+          dueDate: parsed.issueDate,
+          paidAt: null,
+          status: "pending",
+          categoryId: category.id,
+          contactId: contact.id,
+        });
+
         await createInvoice({
           companyId: company.id,
-          direction: row.direction,
+          direction,
           accessKey: parsed.accessKey,
           number: parsed.number,
           series: parsed.series,
@@ -150,6 +213,7 @@ export default function NotasFiscaisPage() {
           totalValue: parsed.totalValue,
           items: parsed.items,
           importedAt: new Date().toISOString(),
+          transactionId: transaction.id,
         });
       }
       setImportedCount(toImport.length);
@@ -166,6 +230,51 @@ export default function NotasFiscaisPage() {
     await deleteInvoice(id);
     if (detailsInvoice?.id === id) setDetailsInvoice(null);
     await reload();
+  }
+
+  function openDetails(invoice: Invoice) {
+    setDetailsInvoice(invoice);
+    setEditingValues(false);
+    setEditForm(null);
+  }
+
+  function startEditingValues() {
+    if (!detailsInvoice) return;
+    setEditForm({
+      totalValue: String(detailsInvoice.totalValue),
+      taxes: {
+        icms: String(detailsInvoice.taxes.icms),
+        ipi: String(detailsInvoice.taxes.ipi),
+        pis: String(detailsInvoice.taxes.pis),
+        cofins: String(detailsInvoice.taxes.cofins),
+        iss: String(detailsInvoice.taxes.iss),
+      },
+    });
+    setEditingValues(true);
+  }
+
+  async function handleSaveValues() {
+    if (!detailsInvoice || !editForm) return;
+    setSavingValues(true);
+    try {
+      const totalValue = Number(editForm.totalValue) || 0;
+      const taxes: InvoiceTaxes = {
+        icms: Number(editForm.taxes.icms) || 0,
+        ipi: Number(editForm.taxes.ipi) || 0,
+        pis: Number(editForm.taxes.pis) || 0,
+        cofins: Number(editForm.taxes.cofins) || 0,
+        iss: Number(editForm.taxes.iss) || 0,
+      };
+      await updateInvoiceValues(detailsInvoice.id, totalValue, taxes);
+      if (detailsInvoice.transactionId) {
+        await updateTransactionAmount(detailsInvoice.transactionId, totalValue);
+      }
+      setDetailsInvoice({ ...detailsInvoice, totalValue, taxes });
+      setEditingValues(false);
+      await reload();
+    } finally {
+      setSavingValues(false);
+    }
   }
 
   const activeInvoices = useMemo(() => invoices.filter((i) => i.direction === activeTab), [invoices, activeTab]);
@@ -219,7 +328,8 @@ export default function NotasFiscaisPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-900">Notas Fiscais</h1>
         <p className="text-sm text-slate-500">
-          Importe os XMLs das NF-e (emitidas ou recebidas) para analisar valores, itens e impostos.
+          Importe os XMLs das NF-e (emitidas ou recebidas) para analisar valores, itens e impostos. Cada nota
+          importada já cria o lançamento correspondente — emitida em Contas a Receber, recebida em Contas a Pagar.
         </p>
       </div>
 
@@ -432,7 +542,7 @@ export default function NotasFiscaisPage() {
                   <td className="px-5 py-3">
                     <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => setDetailsInvoice(inv)}
+                        onClick={() => openDetails(inv)}
                         title="Ver detalhes"
                         className="rounded-md p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600"
                       >
@@ -524,22 +634,77 @@ export default function NotasFiscaisPage() {
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-medium uppercase text-slate-400">Impostos</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {(Object.keys(TAX_LABELS) as (keyof InvoiceTaxes)[]).map((key) => (
-                  <div key={key} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2">
-                    <span className="text-slate-500">{TAX_LABELS[key]}</span>
-                    <span className="font-medium text-slate-800">{formatCurrency(detailsInvoice.taxes[key])}</span>
-                  </div>
-                ))}
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium uppercase text-slate-400">
+                  {editingValues ? "Editar valor total e impostos" : "Impostos"}
+                </p>
+                {!editingValues && (
+                  <button
+                    onClick={startEditingValues}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:underline"
+                  >
+                    <Pencil size={12} />
+                    Corrigir valores
+                  </button>
+                )}
               </div>
+
+              {editingValues && editForm ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="edit-total">Valor total (R$)</Label>
+                    <Input
+                      id="edit-total"
+                      type="number"
+                      step="0.01"
+                      value={editForm.totalValue}
+                      onChange={(e) => setEditForm({ ...editForm, totalValue: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(Object.keys(TAX_LABELS) as (keyof InvoiceTaxes)[]).map((key) => (
+                      <div key={key}>
+                        <Label htmlFor={`edit-${key}`}>{TAX_LABELS[key]} (R$)</Label>
+                        <Input
+                          id={`edit-${key}`}
+                          type="number"
+                          step="0.01"
+                          value={editForm.taxes[key]}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, taxes: { ...editForm.taxes, [key]: e.target.value } })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setEditingValues(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="button" size="sm" onClick={handleSaveValues} disabled={savingValues}>
+                      {savingValues ? "Salvando..." : "Salvar"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {(Object.keys(TAX_LABELS) as (keyof InvoiceTaxes)[]).map((key) => (
+                    <div key={key} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2">
+                      <span className="text-slate-500">{TAX_LABELS[key]}</span>
+                      <span className="font-medium text-slate-800">{formatCurrency(detailsInvoice.taxes[key])}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-between border-t border-slate-100 pt-3 text-sm">
-              <span className="text-slate-500">Desconto: {formatCurrency(detailsInvoice.discountValue)}</span>
-              <span className="text-slate-500">Frete: {formatCurrency(detailsInvoice.freightValue)}</span>
-              <span className="font-semibold text-slate-900">Total: {formatCurrency(detailsInvoice.totalValue)}</span>
-            </div>
+            {!editingValues && (
+              <div className="flex justify-between border-t border-slate-100 pt-3 text-sm">
+                <span className="text-slate-500">Desconto: {formatCurrency(detailsInvoice.discountValue)}</span>
+                <span className="text-slate-500">Frete: {formatCurrency(detailsInvoice.freightValue)}</span>
+                <span className="font-semibold text-slate-900">Total: {formatCurrency(detailsInvoice.totalValue)}</span>
+              </div>
+            )}
           </div>
         )}
       </Modal>

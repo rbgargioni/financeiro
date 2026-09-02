@@ -36,6 +36,10 @@ export async function markTransactionPaid(id: string): Promise<void> {
   await updateDoc(doc(db, "transactions", id), { status: "paid", paidAt: new Date().toISOString() });
 }
 
+export async function updateTransactionAmount(id: string, amount: number): Promise<void> {
+  await updateDoc(doc(db, "transactions", id), { amount });
+}
+
 export async function deleteTransaction(id: string): Promise<void> {
   await deleteDoc(doc(db, "transactions", id));
 }

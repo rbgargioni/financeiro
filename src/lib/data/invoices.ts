@@ -1,6 +1,6 @@
-import { collection, doc, getDocs, addDoc, deleteDoc, query, where, DocumentData } from "firebase/firestore";
+import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, where, DocumentData } from "firebase/firestore";
 import { db } from "../firebase";
-import { Invoice } from "../types";
+import { Invoice, InvoiceTaxes } from "../types";
 
 const invoicesRef = collection(db, "invoices");
 
@@ -24,6 +24,7 @@ function toInvoice(id: string, data: DocumentData): Invoice {
     totalValue: data.totalValue,
     items: data.items ?? [],
     importedAt: data.importedAt,
+    transactionId: data.transactionId ?? null,
   };
 }
 
@@ -37,6 +38,10 @@ export async function listInvoices(companyId: string): Promise<Invoice[]> {
 export async function createInvoice(input: Omit<Invoice, "id">): Promise<Invoice> {
   const ref = await addDoc(invoicesRef, input);
   return { id: ref.id, ...input };
+}
+
+export async function updateInvoiceValues(id: string, totalValue: number, taxes: InvoiceTaxes): Promise<void> {
+  await updateDoc(doc(db, "invoices", id), { totalValue, taxes });
 }
 
 export async function deleteInvoice(id: string): Promise<void> {

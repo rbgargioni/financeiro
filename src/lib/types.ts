@@ -130,4 +130,5 @@ export interface Invoice {
   totalValue: number;
   items: InvoiceItem[];
   importedAt: string; // ISO date
+  transactionId: string | null; // lançamento (contas a receber/pagar) criado automaticamente na importação
 }
