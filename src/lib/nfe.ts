@@ -21,6 +21,11 @@ export function onlyDigits(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+export function formatCnpj(digits: string): string {
+  if (digits.length !== 14) return digits;
+  return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+}
+
 function text(root: Element | Document | null, tag: string): string {
   return root?.querySelector(tag)?.textContent?.trim() ?? "";
 }

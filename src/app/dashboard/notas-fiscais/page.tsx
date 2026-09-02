@@ -1,11 +1,12 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Upload, FileUp, CheckCircle2, Eye, Trash2 } from "lucide-react";
+import { Upload, FileUp, CheckCircle2, Eye, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { listInvoices, createInvoice, deleteInvoice } from "@/lib/data/invoices";
 import { Invoice, InvoiceDirection, InvoiceTaxes } from "@/lib/types";
-import { parseNfeXml, onlyDigits, ParsedNfe } from "@/lib/nfe";
+import { parseNfeXml, onlyDigits, formatCnpj, ParsedNfe } from "@/lib/nfe";
+import { parseNfePdf } from "@/lib/nfe-pdf";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -17,11 +18,16 @@ import { ExportColumn } from "@/lib/export";
 interface ReviewRow {
   key: string;
   fileName: string;
+  source: "xml" | "pdf";
   parsed: ParsedNfe | null;
   error: string | null;
   duplicate: boolean;
   include: boolean;
   direction: InvoiceDirection;
+}
+
+function counterpartyLabel(name: string, cnpj: string): string {
+  return name || (cnpj ? formatCnpj(cnpj) : "—");
 }
 
 const TABS: { value: InvoiceDirection; label: string }[] = [
@@ -78,15 +84,16 @@ export default function NotasFiscaisPage() {
     const newRows: ReviewRow[] = [];
 
     for (const file of Array.from(files)) {
+      const isPdf = file.name.toLowerCase().endsWith(".pdf");
       try {
-        const content = await file.text();
-        const parsed = parseNfeXml(content);
+        const parsed = isPdf ? await parseNfePdf(file) : parseNfeXml(await file.text());
         const duplicate = existingKeys.has(parsed.accessKey) || newRows.some((r) => r.parsed?.accessKey === parsed.accessKey);
         const direction: InvoiceDirection =
           companyDigits && parsed.issuerCnpj === companyDigits ? "issued" : "received";
         newRows.push({
           key: parsed.accessKey,
           fileName: file.name,
+          source: isPdf ? "pdf" : "xml",
           parsed,
           error: null,
           duplicate,
@@ -97,6 +104,7 @@ export default function NotasFiscaisPage() {
         newRows.push({
           key: file.name,
           fileName: file.name,
+          source: isPdf ? "pdf" : "xml",
           parsed: null,
           error: err instanceof Error ? err.message : "Não foi possível ler esse arquivo.",
           duplicate: false,
@@ -181,7 +189,9 @@ export default function NotasFiscaisPage() {
   const totalTaxes = totals.icms + totals.ipi + totals.pis + totals.cofins + totals.iss;
 
   function counterpartyName(invoice: Invoice) {
-    return invoice.direction === "issued" ? invoice.recipientName : invoice.issuerName;
+    return invoice.direction === "issued"
+      ? counterpartyLabel(invoice.recipientName, invoice.recipientCnpj)
+      : counterpartyLabel(invoice.issuerName, invoice.issuerCnpj);
   }
 
   const exportColumns: ExportColumn[] = [
@@ -222,16 +232,26 @@ export default function NotasFiscaisPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Importar XML</CardTitle>
+          <CardTitle>Importar XML ou PDF</CardTitle>
         </CardHeader>
         <CardContent>
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-6 py-10 text-center hover:border-indigo-400 hover:bg-indigo-50/40">
             <Upload size={24} className="text-slate-400" />
             <span className="text-sm font-medium text-slate-700">
-              Clique para escolher um ou mais arquivos .xml de NF-e
+              Clique para escolher um ou mais arquivos .xml ou .pdf de NF-e/NFS-e
             </span>
-            <span className="text-xs text-slate-400">Baixados do portal da SEFAZ ou do seu sistema emissor</span>
-            <input ref={fileInputRef} type="file" accept=".xml" multiple className="hidden" onChange={handleFileChange} />
+            <span className="text-xs text-slate-400">
+              Prefira o .xml quando tiver — é mais confiável. O .pdf (DANFE/DANFSe) é lido como alternativa,
+              mas confira os valores antes de importar.
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xml,.pdf"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </label>
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
         </CardContent>
@@ -267,13 +287,28 @@ export default function NotasFiscaisPage() {
                           onChange={(e) => updateRow(index, { include: e.target.checked })}
                         />
                       </td>
-                      <td className="px-4 py-2 text-slate-500">{row.fileName}</td>
+                      <td className="px-4 py-2 text-slate-500">
+                        <span className="inline-flex items-center gap-1.5">
+                          {row.fileName}
+                          {row.source === "pdf" && (
+                            <span
+                              title="Extraído de PDF — confira os valores antes de importar"
+                              className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+                            >
+                              <AlertTriangle size={11} />
+                              PDF
+                            </span>
+                          )}
+                        </span>
+                      </td>
                       {row.parsed ? (
                         <>
                           <td className="px-4 py-2 text-slate-800">{row.parsed.number}</td>
                           <td className="px-4 py-2 whitespace-nowrap text-slate-500">{formatDate(row.parsed.issueDate)}</td>
                           <td className="px-4 py-2 text-slate-800">
-                            {row.direction === "issued" ? row.parsed.recipientName : row.parsed.issuerName}
+                            {row.direction === "issued"
+                              ? counterpartyLabel(row.parsed.recipientName, row.parsed.recipientCnpj)
+                              : counterpartyLabel(row.parsed.issuerName, row.parsed.issuerCnpj)}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap font-medium text-slate-800">
                             {formatCurrency(row.parsed.totalValue)}
@@ -442,11 +477,15 @@ export default function NotasFiscaisPage() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs uppercase text-slate-400">Emitente</p>
-                <p className="text-slate-800">{detailsInvoice.issuerName}</p>
+                <p className="text-slate-800">
+                  {counterpartyLabel(detailsInvoice.issuerName, detailsInvoice.issuerCnpj)}
+                </p>
               </div>
               <div>
                 <p className="text-xs uppercase text-slate-400">Destinatário</p>
-                <p className="text-slate-800">{detailsInvoice.recipientName}</p>
+                <p className="text-slate-800">
+                  {counterpartyLabel(detailsInvoice.recipientName, detailsInvoice.recipientCnpj)}
+                </p>
               </div>
               <div>
                 <p className="text-xs uppercase text-slate-400">Data de emissão</p>
