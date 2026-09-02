@@ -5,30 +5,36 @@ import { ArrowDownCircle, ArrowUpCircle, Wallet, AlertTriangle } from "lucide-re
 import { useAuth } from "@/contexts/AuthContext";
 import { listTransactions } from "@/lib/data/transactions";
 import { listContacts } from "@/lib/data/contacts";
-import { Transaction, Contact } from "@/lib/types";
-import { computeSummary, buildWeeklyCashFlow } from "@/lib/reports";
+import { listCostCenters } from "@/lib/data/cost-centers";
+import { Transaction, Contact, CostCenter } from "@/lib/types";
+import { computeSummary, buildWeeklyCashFlow, groupPayablesByCostCenter } from "@/lib/reports";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { CashFlowChart } from "@/components/charts/CashFlowChart";
+import { CostCenterChart } from "@/components/charts/CostCenterChart";
 import { STATUS_TONE, STATUS_LABEL } from "@/lib/status-labels";
 
 export default function DashboardHomePage() {
   const { company } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!company) return;
     let active = true;
     setLoading(true);
-    Promise.all([listTransactions(company.id), listContacts(company.id)]).then(([txs, cts]) => {
-      if (!active) return;
-      setTransactions(txs);
-      setContacts(cts);
-      setLoading(false);
-    });
+    Promise.all([listTransactions(company.id), listContacts(company.id), listCostCenters(company.id)]).then(
+      ([txs, cts, ccs]) => {
+        if (!active) return;
+        setTransactions(txs);
+        setContacts(cts);
+        setCostCenters(ccs);
+        setLoading(false);
+      }
+    );
     return () => {
       active = false;
     };
@@ -36,6 +42,10 @@ export default function DashboardHomePage() {
 
   const summary = useMemo(() => computeSummary(transactions), [transactions]);
   const chartData = useMemo(() => buildWeeklyCashFlow(transactions), [transactions]);
+  const costCenterTotals = useMemo(
+    () => groupPayablesByCostCenter(transactions, costCenters),
+    [transactions, costCenters]
+  );
   const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? "—";
 
   const upcoming = useMemo(
@@ -91,6 +101,15 @@ export default function DashboardHomePage() {
         </CardHeader>
         <CardContent>
           <CashFlowChart data={chartData} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Despesas por Centro de Custo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CostCenterChart data={costCenterTotals} />
         </CardContent>
       </Card>
 

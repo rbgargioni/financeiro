@@ -17,6 +17,7 @@ function toTransaction(id: string, data: DocumentData): Transaction {
     categoryId: data.categoryId,
     contactId: data.contactId,
     recurrenceId: data.recurrenceId ?? null,
+    costCenterId: data.costCenterId ?? null,
   };
 }
 

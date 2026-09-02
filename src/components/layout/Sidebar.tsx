@@ -16,6 +16,7 @@ import {
   ArrowLeftRight,
   Upload,
   Receipt,
+  Target,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/dashboard/importar-extrato", label: "Importar Extrato", icon: Upload },
   { href: "/dashboard/notas-fiscais", label: "Notas Fiscais", icon: Receipt },
   { href: "/dashboard/categorias", label: "Categorias", icon: Tags },
+  { href: "/dashboard/centros-de-custo", label: "Centros de Custo", icon: Target },
   { href: "/dashboard/clientes-fornecedores", label: "Clientes e Fornecedores", icon: Users2 },
   { href: "/dashboard/produtos", label: "Produtos", icon: Package },
   { href: "/dashboard/movimentacoes-estoque", label: "Movimentações de Estoque", icon: ArrowLeftRight },

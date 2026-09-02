@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Category, Contact, TransactionType } from "@/lib/types";
+import { Category, Contact, CostCenter, TransactionType } from "@/lib/types";
 import { dateInputToIso } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Select } from "@/components/ui/Input";
@@ -12,6 +12,7 @@ export interface TransactionFormValues {
   dueDate: string;
   categoryId: string;
   contactId: string;
+  costCenterId: string | null;
   recurring: boolean;
   recurrenceMonths: number;
 }
@@ -20,28 +21,35 @@ interface TransactionFormProps {
   type: TransactionType;
   categories: Category[];
   contacts: Contact[];
+  costCenters: CostCenter[];
   onSubmit: (values: TransactionFormValues) => Promise<void>;
   onCancel: () => void;
   onCreateCategory: (name: string) => Promise<Category>;
   onCreateContact: (name: string) => Promise<Contact>;
+  onCreateCostCenter: (name: string) => Promise<CostCenter>;
 }
 
 export function TransactionForm({
   type,
   categories,
   contacts,
+  costCenters,
   onSubmit,
   onCancel,
   onCreateCategory,
   onCreateContact,
+  onCreateCostCenter,
 }: TransactionFormProps) {
   const relevantContacts = contacts.filter((c) => (type === "receivable" ? c.type === "client" : c.type === "supplier"));
+  const activeCostCenters = costCenters.filter((cc) => cc.active);
+  const costCenterRequired = type === "payable";
 
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [contactId, setContactId] = useState(relevantContacts[0]?.id ?? "");
+  const [costCenterId, setCostCenterId] = useState(costCenterRequired ? activeCostCenters[0]?.id ?? "" : "");
   const [recurring, setRecurring] = useState(false);
   const [recurrenceMonths, setRecurrenceMonths] = useState("12");
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +61,10 @@ export function TransactionForm({
   const [addingContact, setAddingContact] = useState(false);
   const [newContactName, setNewContactName] = useState("");
   const [creatingContact, setCreatingContact] = useState(false);
+
+  const [addingCostCenter, setAddingCostCenter] = useState(false);
+  const [newCostCenterName, setNewCostCenterName] = useState("");
+  const [creatingCostCenter, setCreatingCostCenter] = useState(false);
 
   async function handleAddCategory() {
     const name = newCategoryName.trim();
@@ -82,6 +94,20 @@ export function TransactionForm({
     }
   }
 
+  async function handleAddCostCenter() {
+    const name = newCostCenterName.trim();
+    if (!name) return;
+    setCreatingCostCenter(true);
+    try {
+      const costCenter = await onCreateCostCenter(name);
+      setCostCenterId(costCenter.id);
+      setNewCostCenterName("");
+      setAddingCostCenter(false);
+    } finally {
+      setCreatingCostCenter(false);
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -92,6 +118,7 @@ export function TransactionForm({
         dueDate: dateInputToIso(dueDate),
         categoryId,
         contactId,
+        costCenterId: costCenterId || null,
         recurring,
         recurrenceMonths: Number(recurrenceMonths) || 1,
       });
@@ -182,6 +209,60 @@ export function TransactionForm({
 
       <div>
         <div className="mb-1 flex items-center justify-between">
+          <Label htmlFor="costCenter" className="mb-0">
+            Centro de Custo{costCenterRequired ? "" : " (opcional)"}
+          </Label>
+          <button
+            type="button"
+            onClick={() => setAddingCostCenter((v) => !v)}
+            className="text-xs font-medium text-indigo-600 hover:underline"
+          >
+            {addingCostCenter ? "Cancelar" : "+ Novo centro de custo"}
+          </button>
+        </div>
+        {addingCostCenter ? (
+          <div className="flex gap-2">
+            <Input
+              autoFocus
+              value={newCostCenterName}
+              onChange={(e) => setNewCostCenterName(e.target.value)}
+              placeholder="Nome do centro de custo"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddCostCenter();
+                }
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleAddCostCenter}
+              disabled={creatingCostCenter || !newCostCenterName.trim()}
+            >
+              Adicionar
+            </Button>
+          </div>
+        ) : (
+          <Select
+            id="costCenter"
+            required={costCenterRequired}
+            value={costCenterId}
+            onChange={(e) => setCostCenterId(e.target.value)}
+          >
+            {!costCenterRequired && <option value="">Nenhum</option>}
+            {activeCostCenters.length === 0 && <option value="">Nenhum centro de custo cadastrado</option>}
+            {activeCostCenters.map((cc) => (
+              <option key={cc.id} value={cc.id}>
+                {cc.name}
+              </option>
+            ))}
+          </Select>
+        )}
+      </div>
+
+      <div>
+        <div className="mb-1 flex items-center justify-between">
           <Label htmlFor="contact" className="mb-0">
             {type === "receivable" ? "Cliente" : "Fornecedor"}
           </Label>
@@ -250,7 +331,10 @@ export function TransactionForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={submitting || !categoryId || !contactId}>
+        <Button
+          type="submit"
+          disabled={submitting || !categoryId || !contactId || (costCenterRequired && !costCenterId)}
+        >
           {submitting ? "Salvando..." : "Salvar lançamento"}
         </Button>
       </div>

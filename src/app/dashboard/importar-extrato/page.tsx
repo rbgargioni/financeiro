@@ -5,8 +5,9 @@ import { Upload, CheckCircle2, FileUp } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { listCategories } from "@/lib/data/categories";
 import { listContacts } from "@/lib/data/contacts";
+import { listCostCenters } from "@/lib/data/cost-centers";
 import { createTransaction } from "@/lib/data/transactions";
-import { Category, Contact, TransactionType } from "@/lib/types";
+import { Category, Contact, CostCenter, TransactionType } from "@/lib/types";
 import { parseOfx, OfxTransaction } from "@/lib/ofx";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -19,12 +20,14 @@ interface ReviewRow {
   type: TransactionType;
   categoryId: string;
   contactId: string;
+  costCenterId: string;
 }
 
 export default function ImportarExtratoPage() {
   const { company } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,25 +37,36 @@ export default function ImportarExtratoPage() {
 
   useEffect(() => {
     if (!company) return;
-    Promise.all([listCategories(company.id), listContacts(company.id)]).then(([cats, cts]) => {
-      setCategories(cats);
-      setContacts(cts);
-    });
+    Promise.all([listCategories(company.id), listContacts(company.id), listCostCenters(company.id)]).then(
+      ([cats, cts, ccs]) => {
+        setCategories(cats);
+        setContacts(cts);
+        setCostCenters(ccs);
+      }
+    );
   }, [company]);
 
   const receivableCategories = categories.filter((c) => c.type === "receivable");
   const payableCategories = categories.filter((c) => c.type === "payable");
   const clientContacts = contacts.filter((c) => c.type === "client");
   const supplierContacts = contacts.filter((c) => c.type === "supplier");
+  const activeCostCenters = costCenters.filter((cc) => cc.active);
 
   const setupIncomplete =
-    receivableCategories.length === 0 || payableCategories.length === 0 || clientContacts.length === 0 || supplierContacts.length === 0;
+    receivableCategories.length === 0 ||
+    payableCategories.length === 0 ||
+    clientContacts.length === 0 ||
+    supplierContacts.length === 0 ||
+    activeCostCenters.length === 0;
 
   function defaultCategoryId(type: TransactionType) {
     return (type === "receivable" ? receivableCategories[0] : payableCategories[0])?.id ?? "";
   }
   function defaultContactId(type: TransactionType) {
     return (type === "receivable" ? clientContacts[0] : supplierContacts[0])?.id ?? "";
+  }
+  function defaultCostCenterId(type: TransactionType) {
+    return type === "payable" ? activeCostCenters[0]?.id ?? "" : "";
   }
 
   async function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -78,6 +92,7 @@ export default function ImportarExtratoPage() {
             type,
             categoryId: defaultCategoryId(type),
             contactId: defaultContactId(type),
+            costCenterId: defaultCostCenterId(type),
           };
         })
       );
@@ -114,6 +129,7 @@ export default function ImportarExtratoPage() {
           status: "paid",
           categoryId: row.categoryId,
           contactId: row.contactId,
+          costCenterId: row.costCenterId || null,
         });
       }
       setImportedCount(toImport.length);
@@ -138,8 +154,9 @@ export default function ImportarExtratoPage() {
 
       {setupIncomplete && (
         <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          Antes de importar, cadastre pelo menos uma categoria de receita e de despesa (em Categorias) e um cliente e
-          um fornecedor (em Clientes e Fornecedores) — eles são usados para classificar os lançamentos importados.
+          Antes de importar, cadastre pelo menos uma categoria de receita e de despesa (em Categorias), um cliente e
+          um fornecedor (em Clientes e Fornecedores) e um centro de custo ativo (em Centros de Custo) — eles são
+          usados para classificar os lançamentos importados.
         </p>
       )}
 
@@ -190,6 +207,7 @@ export default function ImportarExtratoPage() {
                     <th className="px-4 py-3 font-medium">Descrição</th>
                     <th className="px-4 py-3 font-medium">Valor</th>
                     <th className="px-4 py-3 font-medium">Categoria</th>
+                    <th className="px-4 py-3 font-medium">Centro de Custo</th>
                     <th className="px-4 py-3 font-medium">{"Cliente/Fornecedor"}</th>
                   </tr>
                 </thead>
@@ -224,6 +242,24 @@ export default function ImportarExtratoPage() {
                               </option>
                             ))}
                           </Select>
+                        </td>
+                        <td className="px-4 py-2">
+                          {row.type === "payable" ? (
+                            <Select
+                              className="min-w-[9rem]"
+                              value={row.costCenterId}
+                              disabled={!row.include}
+                              onChange={(e) => updateRow(index, { costCenterId: e.target.value })}
+                            >
+                              {activeCostCenters.map((cc) => (
+                                <option key={cc.id} value={cc.id}>
+                                  {cc.name}
+                                </option>
+                              ))}
+                            </Select>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-2">
                           <Select

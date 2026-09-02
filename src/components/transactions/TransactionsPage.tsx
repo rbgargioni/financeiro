@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Check, Trash2, Repeat } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Transaction, TransactionType, TransactionStatus, Category, Contact } from "@/lib/types";
+import { Transaction, TransactionType, TransactionStatus, Category, Contact, CostCenter } from "@/lib/types";
 import { listTransactions, createTransaction, markTransactionPaid, deleteTransaction } from "@/lib/data/transactions";
 import { listCategories, createCategory } from "@/lib/data/categories";
 import { listContacts, createContact } from "@/lib/data/contacts";
+import { listCostCenters, createCostCenter } from "@/lib/data/cost-centers";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { generateRecurringDueDates } from "@/lib/recurrence";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status-labels";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { ExportMenu } from "@/components/ui/ExportMenu";
 import { ExportColumn } from "@/lib/export";
@@ -35,20 +37,24 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<TransactionStatus | "all">("all");
+  const [costCenterFilter, setCostCenterFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
 
   async function reload() {
     if (!company) return;
-    const [txs, cats, cts] = await Promise.all([
+    const [txs, cats, cts, ccs] = await Promise.all([
       listTransactions(company.id),
       listCategories(company.id),
       listContacts(company.id),
+      listCostCenters(company.id),
     ]);
     setTransactions(txs.filter((t) => t.type === type));
     setCategories(cats.filter((c) => c.type === type));
     setContacts(cts);
+    setCostCenters(ccs);
     setLoading(false);
   }
 
@@ -59,17 +65,25 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
   }, [company, type]);
 
   const filtered = useMemo(
-    () => (filter === "all" ? transactions : transactions.filter((t) => t.status === filter)),
-    [transactions, filter]
+    () =>
+      transactions.filter((t) => {
+        if (filter !== "all" && t.status !== filter) return false;
+        if (costCenterFilter === "none" && t.costCenterId) return false;
+        if (costCenterFilter !== "all" && costCenterFilter !== "none" && t.costCenterId !== costCenterFilter) return false;
+        return true;
+      }),
+    [transactions, filter, costCenterFilter]
   );
 
   const contactName = (id: string) => contacts.find((c) => c.id === id)?.name ?? "—";
   const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? "—";
+  const costCenterName = (id: string | null) => (id ? costCenters.find((c) => c.id === id)?.name ?? "—" : "—");
 
   const exportColumns: ExportColumn[] = [
     { header: "Descrição", key: "description" },
     { header: type === "receivable" ? "Cliente" : "Fornecedor", key: "contact" },
     { header: "Categoria", key: "category" },
+    { header: "Centro de Custo", key: "costCenter" },
     { header: "Vencimento", key: "dueDate" },
     { header: "Valor", key: "amount" },
     { header: "Status", key: "status" },
@@ -80,12 +94,13 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
         description: tx.description,
         contact: contactName(tx.contactId),
         category: categoryName(tx.categoryId),
+        costCenter: costCenterName(tx.costCenterId),
         dueDate: formatDate(tx.dueDate),
         amount: formatCurrency(tx.amount),
         status: STATUS_LABEL[tx.status],
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filtered, contacts, categories]
+    [filtered, contacts, categories, costCenters]
   );
 
   async function handleCreate(values: TransactionFormValues) {
@@ -99,6 +114,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
       status: "pending" as const,
       categoryId: values.categoryId,
       contactId: values.contactId,
+      costCenterId: values.costCenterId,
     };
 
     if (values.recurring && values.recurrenceMonths > 1) {
@@ -127,6 +143,13 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
     const contact = await createContact({ companyId: company.id, name, type: contactType, document: "", email: "", phone: "" });
     setContacts((prev) => [...prev, contact]);
     return contact;
+  }
+
+  async function handleCreateCostCenter(name: string): Promise<CostCenter> {
+    if (!company) throw new Error("Empresa não carregada.");
+    const costCenter = await createCostCenter({ companyId: company.id, name, description: "", active: true });
+    setCostCenters((prev) => [...prev, costCenter]);
+    return costCenter;
   }
 
   async function handleMarkPaid(id: string) {
@@ -160,18 +183,35 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
         </div>
       </div>
 
-      <div className="flex gap-2">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => setFilter(f.value)}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-              filter === f.value ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
-            } border border-slate-200`}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-2">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setFilter(f.value)}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                filter === f.value ? "bg-indigo-600 text-white" : "bg-white text-slate-600 hover:bg-slate-100"
+              } border border-slate-200`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {type === "payable" && (
+          <Select
+            className="w-auto min-w-[10rem]"
+            value={costCenterFilter}
+            onChange={(e) => setCostCenterFilter(e.target.value)}
           >
-            {f.label}
-          </button>
-        ))}
+            <option value="all">Todos os centros de custo</option>
+            <option value="none">Sem centro de custo</option>
+            {costCenters.map((cc) => (
+              <option key={cc.id} value={cc.id}>
+                {cc.name}
+              </option>
+            ))}
+          </Select>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -181,6 +221,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
               <th className="px-5 py-3 font-medium">Descrição</th>
               <th className="px-5 py-3 font-medium">{type === "receivable" ? "Cliente" : "Fornecedor"}</th>
               <th className="px-5 py-3 font-medium">Categoria</th>
+              {type === "payable" && <th className="px-5 py-3 font-medium">Centro de Custo</th>}
               <th className="px-5 py-3 font-medium">Vencimento</th>
               <th className="px-5 py-3 font-medium">Valor</th>
               <th className="px-5 py-3 font-medium">Status</th>
@@ -203,6 +244,9 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
                   </td>
                   <td className="px-5 py-3 text-slate-500">{contactName(tx.contactId)}</td>
                   <td className="px-5 py-3 text-slate-500">{categoryName(tx.categoryId)}</td>
+                  {type === "payable" && (
+                    <td className="px-5 py-3 text-slate-500">{costCenterName(tx.costCenterId)}</td>
+                  )}
                   <td className="px-5 py-3 text-slate-500">{formatDate(tx.dueDate)}</td>
                   <td className="px-5 py-3 font-medium text-slate-800">{formatCurrency(tx.amount)}</td>
                   <td className="px-5 py-3">
@@ -232,14 +276,14 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
               ))}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
+                <td colSpan={type === "payable" ? 8 : 7} className="px-5 py-8 text-center text-slate-400">
                   Nenhum lançamento encontrado.
                 </td>
               </tr>
             )}
             {loading && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
+                <td colSpan={type === "payable" ? 8 : 7} className="px-5 py-8 text-center text-slate-400">
                   Carregando...
                 </td>
               </tr>
@@ -253,10 +297,12 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
           type={type}
           categories={categories}
           contacts={contacts}
+          costCenters={costCenters}
           onCancel={() => setModalOpen(false)}
           onSubmit={handleCreate}
           onCreateCategory={handleCreateCategory}
           onCreateContact={handleCreateContact}
+          onCreateCostCenter={handleCreateCostCenter}
         />
       </Modal>
     </div>

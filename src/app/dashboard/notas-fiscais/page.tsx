@@ -6,8 +6,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { listInvoices, createInvoice, updateInvoiceValues, deleteInvoice } from "@/lib/data/invoices";
 import { listCategories, createCategory } from "@/lib/data/categories";
 import { listContacts, createContact } from "@/lib/data/contacts";
+import { listCostCenters, createCostCenter } from "@/lib/data/cost-centers";
 import { createTransaction, updateTransactionAmount } from "@/lib/data/transactions";
-import { Category, Contact, ContactType, Invoice, InvoiceDirection, InvoiceTaxes, TransactionType } from "@/lib/types";
+import {
+  Category,
+  Contact,
+  ContactType,
+  CostCenter,
+  Invoice,
+  InvoiceDirection,
+  InvoiceTaxes,
+  TransactionType,
+} from "@/lib/types";
 import { parseNfeXml, onlyDigits, formatCnpj, ParsedNfe } from "@/lib/nfe";
 import { parseNfePdf } from "@/lib/nfe-pdf";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -19,6 +29,7 @@ import { ExportMenu } from "@/components/ui/ExportMenu";
 import { ExportColumn } from "@/lib/export";
 
 const NOTAS_FISCAIS_CATEGORY = "Notas Fiscais";
+const NOTAS_FISCAIS_COST_CENTER = "Notas Fiscais";
 
 interface ReviewRow {
   key: string;
@@ -57,6 +68,7 @@ export default function NotasFiscaisPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<InvoiceDirection>("issued");
   const [rows, setRows] = useState<ReviewRow[]>([]);
@@ -73,14 +85,16 @@ export default function NotasFiscaisPage() {
 
   async function reload() {
     if (!company) return;
-    const [invoiceList, categoryList, contactList] = await Promise.all([
+    const [invoiceList, categoryList, contactList, costCenterList] = await Promise.all([
       listInvoices(company.id),
       listCategories(company.id),
       listContacts(company.id),
+      listCostCenters(company.id),
     ]);
     setInvoices(invoiceList);
     setCategories(categoryList);
     setContacts(contactList);
+    setCostCenters(costCenterList);
     setLoading(false);
   }
 
@@ -150,6 +164,7 @@ export default function NotasFiscaisPage() {
       const toImport = rows.filter((r) => r.include && r.parsed);
       const workingCategories = [...categories];
       const workingContacts = [...contacts];
+      const workingCostCenters = [...costCenters];
 
       for (const row of toImport) {
         const parsed = row.parsed!;
@@ -183,11 +198,27 @@ export default function NotasFiscaisPage() {
           workingContacts.push(contact);
         }
 
+        let costCenterId: string | null = null;
+        if (transactionType === "payable") {
+          let costCenter = workingCostCenters.find((cc) => cc.name === NOTAS_FISCAIS_COST_CENTER);
+          if (!costCenter) {
+            costCenter = await createCostCenter({
+              companyId: company.id,
+              name: NOTAS_FISCAIS_COST_CENTER,
+              description: "Despesas de notas fiscais importadas",
+              active: true,
+            });
+            workingCostCenters.push(costCenter);
+          }
+          costCenterId = costCenter.id;
+        }
+
         const transaction = await createTransaction({
           companyId: company.id,
           type: transactionType,
           description: `Nota fiscal nº ${parsed.number || "s/nº"} — ${counterpartyDisplayName}`,
           amount: parsed.totalValue,
+          costCenterId,
           dueDate: parsed.issueDate,
           paidAt: null,
           status: "pending",

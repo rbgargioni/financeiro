@@ -1,4 +1,4 @@
-import { Transaction } from "./types";
+import { CostCenter, Transaction } from "./types";
 
 export interface FinancialSummary {
   balance: number;
@@ -68,4 +68,31 @@ export function buildWeeklyCashFlow(transactions: Transaction[]): WeeklyBucket[]
   }
 
   return buckets;
+}
+
+export interface CostCenterTotal {
+  costCenterId: string | null;
+  name: string;
+  total: number;
+}
+
+/** Sums payable (despesa) amounts by cost center. Apply period/category/status filters to
+ *  `transactions` before calling this — it only knows how to group and sum. */
+export function groupPayablesByCostCenter(transactions: Transaction[], costCenters: CostCenter[]): CostCenterTotal[] {
+  const totals = new Map<string, number>();
+  for (const tx of transactions) {
+    if (tx.type !== "payable") continue;
+    const key = tx.costCenterId ?? "";
+    totals.set(key, (totals.get(key) ?? 0) + tx.amount);
+  }
+
+  const results: CostCenterTotal[] = [];
+  for (const cc of costCenters) {
+    const total = totals.get(cc.id);
+    if (total) results.push({ costCenterId: cc.id, name: cc.name, total });
+  }
+  const unassigned = totals.get("");
+  if (unassigned) results.push({ costCenterId: null, name: "Sem centro de custo", total: unassigned });
+
+  return results.sort((a, b) => b.total - a.total);
 }

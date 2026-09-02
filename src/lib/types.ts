@@ -45,6 +45,7 @@ export interface Transaction {
   categoryId: string;
   contactId: string;
   recurrenceId?: string | null; // shared by every occurrence generated from the same recurring launch
+  costCenterId: string | null; // required by the form for despesas, optional for receitas
 }
 
 export type CategoryType = "receivable" | "payable";
@@ -131,4 +132,12 @@ export interface Invoice {
   items: InvoiceItem[];
   importedAt: string; // ISO date
   transactionId: string | null; // lançamento (contas a receber/pagar) criado automaticamente na importação
+}
+
+export interface CostCenter {
+  id: string;
+  companyId: string;
+  name: string;
+  description: string;
+  active: boolean;
 }
