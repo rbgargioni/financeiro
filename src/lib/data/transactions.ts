@@ -41,6 +41,13 @@ export async function updateTransactionAmount(id: string, amount: number): Promi
   await updateDoc(doc(db, "transactions", id), { amount });
 }
 
+export async function updateTransaction(
+  id: string,
+  patch: Partial<Pick<Transaction, "description" | "amount" | "dueDate" | "categoryId" | "contactId" | "costCenterId">>
+): Promise<void> {
+  await updateDoc(doc(db, "transactions", id), patch);
+}
+
 export async function deleteTransaction(id: string): Promise<void> {
   await deleteDoc(doc(db, "transactions", id));
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Category, Contact, CostCenter, TransactionType } from "@/lib/types";
-import { dateInputToIso } from "@/lib/utils";
+import { Category, Contact, CostCenter, Transaction, TransactionType } from "@/lib/types";
+import { dateInputToIso, isoToDateInputValue } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
 import { Input, Label, Select } from "@/components/ui/Input";
 
@@ -22,6 +22,7 @@ interface TransactionFormProps {
   categories: Category[];
   contacts: Contact[];
   costCenters: CostCenter[];
+  editing?: Transaction | null;
   onSubmit: (values: TransactionFormValues) => Promise<void>;
   onCancel: () => void;
   onCreateCategory: (name: string) => Promise<Category>;
@@ -34,6 +35,7 @@ export function TransactionForm({
   categories,
   contacts,
   costCenters,
+  editing,
   onSubmit,
   onCancel,
   onCreateCategory,
@@ -43,13 +45,21 @@ export function TransactionForm({
   const relevantContacts = contacts.filter((c) => (type === "receivable" ? c.type === "client" : c.type === "supplier"));
   const activeCostCenters = costCenters.filter((cc) => cc.active);
   const costCenterRequired = type === "payable";
+  // Editing a transaction whose cost center was since deactivated: keep it selectable so saving
+  // without touching this field doesn't silently reassign it.
+  const selectableCostCenters =
+    editing?.costCenterId && !activeCostCenters.some((cc) => cc.id === editing.costCenterId)
+      ? [...activeCostCenters, ...costCenters.filter((cc) => cc.id === editing.costCenterId)]
+      : activeCostCenters;
 
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
-  const [contactId, setContactId] = useState(relevantContacts[0]?.id ?? "");
-  const [costCenterId, setCostCenterId] = useState(costCenterRequired ? activeCostCenters[0]?.id ?? "" : "");
+  const [description, setDescription] = useState(editing?.description ?? "");
+  const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
+  const [dueDate, setDueDate] = useState(editing ? isoToDateInputValue(editing.dueDate) : "");
+  const [categoryId, setCategoryId] = useState(editing?.categoryId ?? categories[0]?.id ?? "");
+  const [contactId, setContactId] = useState(editing?.contactId ?? relevantContacts[0]?.id ?? "");
+  const [costCenterId, setCostCenterId] = useState(
+    editing ? editing.costCenterId ?? "" : costCenterRequired ? activeCostCenters[0]?.id ?? "" : ""
+  );
   const [recurring, setRecurring] = useState(false);
   const [recurrenceMonths, setRecurrenceMonths] = useState("12");
   const [submitting, setSubmitting] = useState(false);
@@ -250,9 +260,16 @@ export function TransactionForm({
             value={costCenterId}
             onChange={(e) => setCostCenterId(e.target.value)}
           >
-            {!costCenterRequired && <option value="">Nenhum</option>}
-            {activeCostCenters.length === 0 && <option value="">Nenhum centro de custo cadastrado</option>}
-            {activeCostCenters.map((cc) => (
+            {(!costCenterRequired || !costCenterId) && (
+              <option value="" disabled={costCenterRequired}>
+                {selectableCostCenters.length === 0
+                  ? "Nenhum centro de custo cadastrado"
+                  : costCenterRequired
+                    ? "Selecione um centro de custo"
+                    : "Nenhum"}
+              </option>
+            )}
+            {selectableCostCenters.map((cc) => (
               <option key={cc.id} value={cc.id}>
                 {cc.name}
               </option>
@@ -304,28 +321,30 @@ export function TransactionForm({
         )}
       </div>
 
-      <div className="rounded-lg border border-slate-200 p-3">
-        <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-          <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
-          Repetir mensalmente
-        </label>
-        {recurring && (
-          <div className="mt-3">
-            <Label htmlFor="recurrenceMonths">Por quantos meses (incluindo este)</Label>
-            <Input
-              id="recurrenceMonths"
-              type="number"
-              min="2"
-              max="60"
-              value={recurrenceMonths}
-              onChange={(e) => setRecurrenceMonths(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-slate-400">
-              Cria automaticamente um lançamento igual a este todo mês, mesmo dia, pelo número de meses informado.
-            </p>
-          </div>
-        )}
-      </div>
+      {!editing && (
+        <div className="rounded-lg border border-slate-200 p-3">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={recurring} onChange={(e) => setRecurring(e.target.checked)} />
+            Repetir mensalmente
+          </label>
+          {recurring && (
+            <div className="mt-3">
+              <Label htmlFor="recurrenceMonths">Por quantos meses (incluindo este)</Label>
+              <Input
+                id="recurrenceMonths"
+                type="number"
+                min="2"
+                max="60"
+                value={recurrenceMonths}
+                onChange={(e) => setRecurrenceMonths(e.target.value)}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Cria automaticamente um lançamento igual a este todo mês, mesmo dia, pelo número de meses informado.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>
@@ -335,7 +354,7 @@ export function TransactionForm({
           type="submit"
           disabled={submitting || !categoryId || !contactId || (costCenterRequired && !costCenterId)}
         >
-          {submitting ? "Salvando..." : "Salvar lançamento"}
+          {submitting ? "Salvando..." : editing ? "Salvar alterações" : "Salvar lançamento"}
         </Button>
       </div>
     </form>

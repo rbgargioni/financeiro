@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Check, Trash2, Repeat } from "lucide-react";
+import { Plus, Check, Pencil, Trash2, Repeat } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Transaction, TransactionType, TransactionStatus, Category, Contact, CostCenter } from "@/lib/types";
-import { listTransactions, createTransaction, markTransactionPaid, deleteTransaction } from "@/lib/data/transactions";
+import {
+  listTransactions,
+  createTransaction,
+  updateTransaction,
+  markTransactionPaid,
+  deleteTransaction,
+} from "@/lib/data/transactions";
 import { listCategories, createCategory } from "@/lib/data/categories";
 import { listContacts, createContact } from "@/lib/data/contacts";
 import { listCostCenters, createCostCenter } from "@/lib/data/cost-centers";
@@ -42,6 +48,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
   const [filter, setFilter] = useState<TransactionStatus | "all">("all");
   const [costCenterFilter, setCostCenterFilter] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   async function reload() {
     if (!company) return;
@@ -103,8 +110,24 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
     [filtered, contacts, categories, costCenters]
   );
 
-  async function handleCreate(values: TransactionFormValues) {
+  async function handleFormSubmit(values: TransactionFormValues) {
     if (!company) return;
+
+    if (editingTransaction) {
+      await updateTransaction(editingTransaction.id, {
+        description: values.description,
+        amount: values.amount,
+        dueDate: values.dueDate,
+        categoryId: values.categoryId,
+        contactId: values.contactId,
+        costCenterId: values.costCenterId,
+      });
+      setModalOpen(false);
+      setEditingTransaction(null);
+      await reload();
+      return;
+    }
+
     const base = {
       companyId: company.id,
       type,
@@ -128,6 +151,21 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
     }
     setModalOpen(false);
     await reload();
+  }
+
+  function openCreateModal() {
+    setEditingTransaction(null);
+    setModalOpen(true);
+  }
+
+  function openEditModal(tx: Transaction) {
+    setEditingTransaction(tx);
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setEditingTransaction(null);
   }
 
   async function handleCreateCategory(name: string): Promise<Category> {
@@ -176,7 +214,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
             columns={exportColumns}
             rows={exportRows}
           />
-          <Button onClick={() => setModalOpen(true)}>
+          <Button onClick={openCreateModal}>
             <Plus size={16} />
             Novo lançamento
           </Button>
@@ -264,6 +302,13 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
                         </button>
                       )}
                       <button
+                        onClick={() => openEditModal(tx)}
+                        title="Editar"
+                        className="rounded-md p-1.5 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
                         onClick={() => handleDelete(tx.id)}
                         title="Excluir"
                         className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
@@ -292,14 +337,19 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
         </table>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={`Novo lançamento - ${title}`}>
+      <Modal
+        open={modalOpen}
+        onClose={closeModal}
+        title={editingTransaction ? `Editar lançamento - ${title}` : `Novo lançamento - ${title}`}
+      >
         <TransactionForm
           type={type}
           categories={categories}
           contacts={contacts}
           costCenters={costCenters}
-          onCancel={() => setModalOpen(false)}
-          onSubmit={handleCreate}
+          editing={editingTransaction}
+          onCancel={closeModal}
+          onSubmit={handleFormSubmit}
           onCreateCategory={handleCreateCategory}
           onCreateContact={handleCreateContact}
           onCreateCostCenter={handleCreateCostCenter}

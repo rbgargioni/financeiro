@@ -32,3 +32,12 @@ export function todayDateInputValue(): string {
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+/** Converts an ISO string back to an <input type="date"> value ("YYYY-MM-DD"), in local time. */
+export function isoToDateInputValue(iso: string): string {
+  const d = new Date(iso);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
