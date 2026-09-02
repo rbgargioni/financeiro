@@ -92,3 +92,42 @@ export interface StockMovement {
   reason: string;
   date: string; // ISO date
 }
+
+export type InvoiceDirection = "issued" | "received";
+
+export interface InvoiceItem {
+  code: string;
+  description: string;
+  quantity: number;
+  unitValue: number;
+  totalValue: number;
+}
+
+export interface InvoiceTaxes {
+  icms: number;
+  ipi: number;
+  pis: number;
+  cofins: number;
+  iss: number;
+}
+
+export interface Invoice {
+  id: string;
+  companyId: string;
+  direction: InvoiceDirection;
+  accessKey: string; // chave de acesso da NF-e (44 dígitos)
+  number: string;
+  series: string;
+  issueDate: string; // ISO date
+  issuerCnpj: string;
+  issuerName: string;
+  recipientCnpj: string;
+  recipientName: string;
+  productsValue: number;
+  discountValue: number;
+  freightValue: number;
+  taxes: InvoiceTaxes;
+  totalValue: number;
+  items: InvoiceItem[];
+  importedAt: string; // ISO date
+}
