@@ -31,24 +31,8 @@ function num(root: Element | Document | null, tag: string): number {
   return Number.isNaN(value) ? 0 : value;
 }
 
-/**
- * Parses a NF-e (modelo 55/65) XML file, as downloaded from the SEFAZ portal or an emitter
- * system. Unlike OFX (SGML, often malformed), NF-e XML is well-formed, so this uses DOMParser
- * instead of regex. querySelector matches by local tag name, which works here even though the
- * document declares the `http://www.portalfiscal.inf.br/nfe` namespace — browsers ignore XML
- * namespaces for plain (non `ns|tag`) CSS selectors.
- */
-export function parseNfeXml(content: string): ParsedNfe {
-  const doc = new DOMParser().parseFromString(content, "application/xml");
-  if (doc.querySelector("parsererror")) {
-    throw new Error("Arquivo XML inválido ou corrompido.");
-  }
-
-  const infNFe = doc.querySelector("infNFe");
-  if (!infNFe) {
-    throw new Error("Esse arquivo não parece ser o XML de uma NF-e.");
-  }
-
+/** NF-e (modelo 55/65, mercadorias) — namespace `http://www.portalfiscal.inf.br/nfe`. */
+function parseNFeProdutos(infNFe: Element): ParsedNfe {
   const idAttr = infNFe.getAttribute("Id") ?? "";
   const accessKey = onlyDigits(idAttr);
   if (accessKey.length !== 44) {
@@ -97,4 +81,68 @@ export function parseNfeXml(content: string): ParsedNfe {
     totalValue: num(icmsTot, "vNF"),
     items,
   };
+}
+
+/** NFS-e nacional (serviços) — namespace `http://www.sped.fazenda.gov.br/nfse`. */
+function parseNFSe(infNFSe: Element): ParsedNfe {
+  const accessKey = onlyDigits(infNFSe.getAttribute("Id") ?? "");
+  if (!accessKey) {
+    throw new Error("Não encontrei uma chave de acesso válida nesse XML.");
+  }
+
+  const emit = infNFSe.querySelector("emit");
+  const infDPS = infNFSe.querySelector("DPS > infDPS") ?? infNFSe.querySelector("infDPS");
+  const toma = infDPS?.querySelector("toma") ?? null;
+
+  const issueDateRaw = text(infDPS, "dhEmi") || text(infNFSe, "dhProc");
+  const issueDate = issueDateRaw ? new Date(issueDateRaw).toISOString() : new Date().toISOString();
+
+  const serviceValue = num(infDPS, "valores > vServPrest > vServ") || num(infNFSe, "valores > vLiq");
+  const description =
+    text(infDPS, "serv > cServ > xDescServ").replace(/\s+/g, " ").trim() || "Serviço prestado";
+
+  return {
+    accessKey,
+    number: text(infNFSe, "nNFSe"),
+    series: "",
+    issueDate,
+    issuerCnpj: onlyDigits(text(emit, "CNPJ")),
+    issuerName: text(emit, "xNome"),
+    recipientCnpj: onlyDigits(text(toma, "CNPJ") || text(toma, "CPF")),
+    recipientName: text(toma, "xNome"),
+    productsValue: serviceValue,
+    discountValue: 0,
+    freightValue: 0,
+    taxes: {
+      icms: 0,
+      ipi: 0,
+      pis: 0,
+      cofins: 0,
+      iss: num(infDPS, "valores > vISSQN"),
+    },
+    totalValue: serviceValue,
+    items: [{ code: "", description, quantity: 1, unitValue: serviceValue, totalValue: serviceValue }],
+  };
+}
+
+/**
+ * Parses a NF-e (modelo 55/65, mercadorias) or NFS-e nacional (serviços) XML file, as
+ * downloaded from the SEFAZ/prefeitura portal or an emitter system. Unlike OFX (SGML, often
+ * malformed), these are well-formed XML, so this uses DOMParser instead of regex.
+ * querySelector matches by local tag name, which works here even though both documents declare
+ * an XML namespace — browsers ignore XML namespaces for plain (non `ns|tag`) CSS selectors.
+ */
+export function parseNfeXml(content: string): ParsedNfe {
+  const doc = new DOMParser().parseFromString(content, "application/xml");
+  if (doc.querySelector("parsererror")) {
+    throw new Error("Arquivo XML inválido ou corrompido.");
+  }
+
+  const infNFe = doc.querySelector("infNFe");
+  if (infNFe) return parseNFeProdutos(infNFe);
+
+  const infNFSe = doc.querySelector("infNFSe");
+  if (infNFSe) return parseNFSe(infNFSe);
+
+  throw new Error("Esse arquivo não parece ser o XML de uma NF-e ou NFS-e.");
 }
