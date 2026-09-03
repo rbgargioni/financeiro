@@ -147,6 +147,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
       contactId: values.contactId,
       costCenterId: values.costCenterId,
       bankAccountId: values.bankAccountId,
+      reconciled: false,
     };
 
     if (values.recurring && values.recurrenceMonths > 1) {

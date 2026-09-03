@@ -226,6 +226,7 @@ export default function NotasFiscaisPage() {
           status: "pending",
           categoryId: category.id,
           contactId: contact.id,
+          reconciled: false,
         });
 
         await createInvoice({

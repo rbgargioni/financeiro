@@ -20,6 +20,7 @@ function toTransaction(id: string, data: DocumentData): Transaction {
     recurrenceId: data.recurrenceId ?? null,
     costCenterId: data.costCenterId ?? null,
     bankAccountId: data.bankAccountId ?? null,
+    reconciled: data.reconciled ?? false,
   };
 }
 
@@ -41,6 +42,10 @@ export async function markTransactionPaid(id: string): Promise<void> {
 
 export async function updateTransactionAmount(id: string, amount: number): Promise<void> {
   await updateDoc(doc(db, "transactions", id), { amount });
+}
+
+export async function updateTransactionReconciled(id: string, reconciled: boolean): Promise<void> {
+  await updateDoc(doc(db, "transactions", id), { reconciled });
 }
 
 export async function updateTransaction(

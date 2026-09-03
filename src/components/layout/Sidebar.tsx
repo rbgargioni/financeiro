@@ -18,6 +18,7 @@ import {
   Receipt,
   Target,
   Landmark,
+  FileBarChart,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/dashboard/contas-a-pagar", label: "Contas a Pagar", icon: ArrowUpCircle },
   { href: "/dashboard/fluxo-de-caixa", label: "Fluxo de Caixa", icon: Wallet },
   { href: "/dashboard/contas-bancarias", label: "Contas Bancárias", icon: Landmark },
+  { href: "/dashboard/relatorios/extrato-bancario", label: "Relatórios", icon: FileBarChart },
   { href: "/dashboard/importar-extrato", label: "Importar Extrato", icon: Upload },
   { href: "/dashboard/notas-fiscais", label: "Notas Fiscais", icon: Receipt },
   { href: "/dashboard/categorias", label: "Categorias", icon: Tags },

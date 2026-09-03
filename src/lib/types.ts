@@ -48,6 +48,7 @@ export interface Transaction {
   recurrenceId?: string | null; // shared by every occurrence generated from the same recurring launch
   costCenterId: string | null; // required by the form for despesas, optional for receitas
   bankAccountId: string | null;
+  reconciled: boolean; // conferido contra o extrato bancário real
 }
 
 export type CategoryType = "receivable" | "payable";

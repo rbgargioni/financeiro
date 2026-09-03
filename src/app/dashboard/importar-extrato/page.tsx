@@ -6,13 +6,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { listCategories } from "@/lib/data/categories";
 import { listContacts } from "@/lib/data/contacts";
 import { listCostCenters } from "@/lib/data/cost-centers";
+import { listBankAccounts } from "@/lib/data/bank-accounts";
 import { createTransaction } from "@/lib/data/transactions";
-import { Category, Contact, CostCenter, TransactionType } from "@/lib/types";
+import { BankAccount, Category, Contact, CostCenter, TransactionType } from "@/lib/types";
 import { parseOfx, OfxTransaction } from "@/lib/ofx";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Input";
+import { Label, Select } from "@/components/ui/Input";
 
 interface ReviewRow {
   ofx: OfxTransaction;
@@ -28,6 +29,8 @@ export default function ImportarExtratoPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [bankAccountId, setBankAccountId] = useState("");
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,13 +40,18 @@ export default function ImportarExtratoPage() {
 
   useEffect(() => {
     if (!company) return;
-    Promise.all([listCategories(company.id), listContacts(company.id), listCostCenters(company.id)]).then(
-      ([cats, cts, ccs]) => {
-        setCategories(cats);
-        setContacts(cts);
-        setCostCenters(ccs);
-      }
-    );
+    Promise.all([
+      listCategories(company.id),
+      listContacts(company.id),
+      listCostCenters(company.id),
+      listBankAccounts(company.id),
+    ]).then(([cats, cts, ccs, bas]) => {
+      setCategories(cats);
+      setContacts(cts);
+      setCostCenters(ccs);
+      setBankAccounts(bas);
+      setBankAccountId((current) => current || bas.find((b) => b.active)?.id || "");
+    });
   }, [company]);
 
   const receivableCategories = categories.filter((c) => c.type === "receivable");
@@ -51,13 +59,15 @@ export default function ImportarExtratoPage() {
   const clientContacts = contacts.filter((c) => c.type === "client");
   const supplierContacts = contacts.filter((c) => c.type === "supplier");
   const activeCostCenters = costCenters.filter((cc) => cc.active);
+  const activeBankAccounts = bankAccounts.filter((b) => b.active);
 
   const setupIncomplete =
     receivableCategories.length === 0 ||
     payableCategories.length === 0 ||
     clientContacts.length === 0 ||
     supplierContacts.length === 0 ||
-    activeCostCenters.length === 0;
+    activeCostCenters.length === 0 ||
+    activeBankAccounts.length === 0;
 
   function defaultCategoryId(type: TransactionType) {
     return (type === "receivable" ? receivableCategories[0] : payableCategories[0])?.id ?? "";
@@ -131,7 +141,8 @@ export default function ImportarExtratoPage() {
           categoryId: row.categoryId,
           contactId: row.contactId,
           costCenterId: row.costCenterId || null,
-          bankAccountId: null,
+          bankAccountId: bankAccountId || null,
+          reconciled: false,
         });
       }
       setImportedCount(toImport.length);
@@ -157,8 +168,8 @@ export default function ImportarExtratoPage() {
       {setupIncomplete && (
         <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700">
           Antes de importar, cadastre pelo menos uma categoria de receita e de despesa (em Categorias), um cliente e
-          um fornecedor (em Clientes e Fornecedores) e um centro de custo ativo (em Centros de Custo) — eles são
-          usados para classificar os lançamentos importados.
+          um fornecedor (em Clientes e Fornecedores), um centro de custo ativo (em Centros de Custo) e uma conta
+          bancária ativa (em Contas Bancárias) — eles são usados para classificar os lançamentos importados.
         </p>
       )}
 
@@ -173,7 +184,26 @@ export default function ImportarExtratoPage() {
         <CardHeader>
           <CardTitle>Selecionar arquivo</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="max-w-xs">
+            <Label htmlFor="import-bank-account">Conta bancária deste extrato</Label>
+            <Select
+              id="import-bank-account"
+              value={bankAccountId}
+              onChange={(e) => setBankAccountId(e.target.value)}
+              disabled={activeBankAccounts.length === 0}
+            >
+              {activeBankAccounts.length === 0 && <option value="">Nenhuma conta bancária cadastrada</option>}
+              {activeBankAccounts.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-xs text-slate-400">
+              Todos os lançamentos deste arquivo são registrados nessa conta.
+            </p>
+          </div>
           <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-6 py-10 text-center hover:border-indigo-400 hover:bg-indigo-50/40">
             <Upload size={24} className="text-slate-400" />
             <span className="text-sm font-medium text-slate-700">

@@ -96,3 +96,58 @@ export function groupPayablesByCostCenter(transactions: Transaction[], costCente
 
   return results.sort((a, b) => b.total - a.total);
 }
+
+export interface BankStatementRow {
+  transaction: Transaction;
+  signedAmount: number;
+  running: number;
+}
+
+export interface BankStatementResult {
+  openingBalance: number;
+  rows: BankStatementRow[];
+}
+
+/**
+ * Builds a bank statement: only realized (paid) movements for one account (or "all"/"none"),
+ * ordered by paidAt, with a running balance. `openingBalance` folds in every matching movement
+ * before `from` so the running total inside the filtered period starts from the right place.
+ */
+export function buildBankStatement(
+  transactions: Transaction[],
+  opts: { bankAccountId: string | "all" | "none"; from?: string; to?: string }
+): BankStatementResult {
+  function matchesAccount(t: Transaction): boolean {
+    if (opts.bankAccountId === "all") return true;
+    if (opts.bankAccountId === "none") return !t.bankAccountId;
+    return t.bankAccountId === opts.bankAccountId;
+  }
+
+  const paid = transactions
+    .filter((t): t is Transaction & { paidAt: string } => t.status === "paid" && !!t.paidAt && matchesAccount(t))
+    .sort((a, b) => new Date(a.paidAt).getTime() - new Date(b.paidAt).getTime());
+
+  const fromTime = opts.from ? new Date(opts.from).getTime() : null;
+  const toTime = opts.to ? new Date(opts.to).getTime() : null;
+
+  let openingBalance = 0;
+  const inRange: Transaction[] = [];
+  for (const t of paid) {
+    const time = new Date(t.paidAt).getTime();
+    const signedAmount = t.type === "receivable" ? t.amount : -t.amount;
+    if (fromTime !== null && time < fromTime) {
+      openingBalance += signedAmount;
+    } else if (toTime === null || time <= toTime) {
+      inRange.push(t);
+    }
+  }
+
+  let running = openingBalance;
+  const rows: BankStatementRow[] = inRange.map((t) => {
+    const signedAmount = t.type === "receivable" ? t.amount : -t.amount;
+    running += signedAmount;
+    return { transaction: t, signedAmount, running };
+  });
+
+  return { openingBalance, rows };
+}
