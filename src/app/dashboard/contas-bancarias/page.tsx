@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { listBankAccounts, createBankAccount, updateBankAccount, deleteBankAccount } from "@/lib/data/bank-accounts";
+import { fetchBanks, BankOption } from "@/lib/banks";
 import { BankAccount } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -26,6 +27,7 @@ export default function ContasBancariasPage() {
   const [accountNumber, setAccountNumber] = useState("");
   const [active, setActive] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [bankOptions, setBankOptions] = useState<BankOption[]>([]);
 
   async function reload() {
     if (!company) return;
@@ -38,6 +40,7 @@ export default function ContasBancariasPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     reload();
+    fetchBanks().then(setBankOptions);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company]);
 
@@ -198,7 +201,19 @@ export default function ContasBancariasPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="ba-bank">Banco</Label>
-              <Input id="ba-bank" value={bank} onChange={(e) => setBank(e.target.value)} />
+              <Input
+                id="ba-bank"
+                list="bank-options"
+                autoComplete="off"
+                value={bank}
+                onChange={(e) => setBank(e.target.value)}
+                placeholder="Comece a digitar..."
+              />
+              <datalist id="bank-options">
+                {bankOptions.map((b) => (
+                  <option key={b.code} value={b.name} />
+                ))}
+              </datalist>
             </div>
             <div>
               <Label htmlFor="ba-agency">Agência</Label>
