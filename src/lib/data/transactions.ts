@@ -11,6 +11,7 @@ function toTransaction(id: string, data: DocumentData): Transaction {
     type: data.type,
     description: data.description,
     amount: data.amount,
+    competenceDate: data.competenceDate ?? data.dueDate,
     dueDate: data.dueDate,
     paidAt: data.paidAt ?? null,
     status: data.status,
@@ -47,7 +48,16 @@ export async function updateTransaction(
   patch: Partial<
     Pick<
       Transaction,
-      "description" | "amount" | "dueDate" | "categoryId" | "contactId" | "costCenterId" | "bankAccountId" | "status" | "paidAt"
+      | "description"
+      | "amount"
+      | "competenceDate"
+      | "dueDate"
+      | "categoryId"
+      | "contactId"
+      | "costCenterId"
+      | "bankAccountId"
+      | "status"
+      | "paidAt"
     >
   >
 ): Promise<void> {

@@ -39,6 +39,7 @@ export interface Transaction {
   type: TransactionType;
   description: string;
   amount: number;
+  competenceDate: string; // ISO date — when the amount is recognized for accounting (accrual), vs. dueDate/paidAt
   dueDate: string; // ISO date
   paidAt: string | null; // ISO date
   status: TransactionStatus;

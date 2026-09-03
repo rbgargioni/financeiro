@@ -124,6 +124,7 @@ export default function ImportarExtratoPage() {
           type: row.type,
           description: row.ofx.description,
           amount: Math.abs(row.ofx.amount),
+          competenceDate: row.ofx.date,
           dueDate: row.ofx.date,
           paidAt: row.ofx.date,
           status: "paid",

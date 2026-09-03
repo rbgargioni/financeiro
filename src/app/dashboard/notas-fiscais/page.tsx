@@ -220,6 +220,7 @@ export default function NotasFiscaisPage() {
           amount: parsed.totalValue,
           costCenterId,
           bankAccountId: null,
+          competenceDate: parsed.issueDate,
           dueDate: parsed.issueDate,
           paidAt: null,
           status: "pending",

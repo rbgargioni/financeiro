@@ -9,6 +9,7 @@ import { Input, Label, Select } from "@/components/ui/Input";
 export interface TransactionFormValues {
   description: string;
   amount: number;
+  competenceDate: string;
   dueDate: string;
   categoryId: string;
   contactId: string;
@@ -67,6 +68,13 @@ export function TransactionForm({
   const [description, setDescription] = useState(editing?.description ?? "");
   const [amount, setAmount] = useState(editing ? String(editing.amount) : "");
   const [dueDate, setDueDate] = useState(editing ? isoToDateInputValue(editing.dueDate) : "");
+  const [competenceDate, setCompetenceDate] = useState(
+    editing ? isoToDateInputValue(editing.competenceDate) : ""
+  );
+  // Until the user edits competência directly, it tracks vencimento — most launches recognize
+  // on the same date they're due. Editing whichever loaded from an existing record doesn't
+  // auto-sync (competenceTouched starts true), since the two may already legitimately differ.
+  const [competenceTouched, setCompetenceTouched] = useState(!!editing);
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? categories[0]?.id ?? "");
   const [contactId, setContactId] = useState(editing?.contactId ?? relevantContacts[0]?.id ?? "");
   const [costCenterId, setCostCenterId] = useState(
@@ -153,6 +161,16 @@ export function TransactionForm({
     }
   }
 
+  function handleDueDateChange(value: string) {
+    setDueDate(value);
+    if (!competenceTouched) setCompetenceDate(value);
+  }
+
+  function handleCompetenceDateChange(value: string) {
+    setCompetenceDate(value);
+    setCompetenceTouched(true);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -160,6 +178,7 @@ export function TransactionForm({
       await onSubmit({
         description,
         amount: Number(amount),
+        competenceDate: dateInputToIso(competenceDate),
         dueDate: dateInputToIso(dueDate),
         categoryId,
         contactId,
@@ -187,27 +206,37 @@ export function TransactionForm({
           placeholder={type === "receivable" ? "Ex: Venda para cliente X" : "Ex: Pagamento de fornecedor"}
         />
       </div>
+      <div>
+        <Label htmlFor="amount">Valor (R$)</Label>
+        <Input
+          id="amount"
+          type="number"
+          min="0"
+          step="0.01"
+          required
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="amount">Valor (R$)</Label>
+          <Label htmlFor="competenceDate">Data de competência</Label>
           <Input
-            id="amount"
-            type="number"
-            min="0"
-            step="0.01"
+            id="competenceDate"
+            type="date"
             required
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            value={competenceDate}
+            onChange={(e) => handleCompetenceDateChange(e.target.value)}
           />
         </div>
         <div>
-          <Label htmlFor="dueDate">Vencimento</Label>
+          <Label htmlFor="dueDate">Data de vencimento</Label>
           <Input
             id="dueDate"
             type="date"
             required
             value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
+            onChange={(e) => handleDueDateChange(e.target.value)}
           />
         </div>
       </div>

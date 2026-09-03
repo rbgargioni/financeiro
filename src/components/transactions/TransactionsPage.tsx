@@ -95,6 +95,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
     { header: type === "receivable" ? "Cliente" : "Fornecedor", key: "contact" },
     { header: "Categoria", key: "category" },
     { header: "Centro de Custo", key: "costCenter" },
+    { header: "Competência", key: "competenceDate" },
     { header: "Vencimento", key: "dueDate" },
     { header: "Valor", key: "amount" },
     { header: "Status", key: "status" },
@@ -106,6 +107,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
         contact: contactName(tx.contactId),
         category: categoryName(tx.categoryId),
         costCenter: costCenterName(tx.costCenterId),
+        competenceDate: formatDate(tx.competenceDate),
         dueDate: formatDate(tx.dueDate),
         amount: formatCurrency(tx.amount),
         status: STATUS_LABEL[tx.status],
@@ -121,6 +123,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
       await updateTransaction(editingTransaction.id, {
         description: values.description,
         amount: values.amount,
+        competenceDate: values.competenceDate,
         dueDate: values.dueDate,
         categoryId: values.categoryId,
         contactId: values.contactId,
@@ -148,15 +151,25 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
 
     if (values.recurring && values.recurrenceMonths > 1) {
       // Marking "already paid" only applies to a single launch — a recurring series' future
-      // occurrences haven't happened yet, so they're always created pending.
+      // occurrences haven't happened yet, so they're always created pending. Competência shifts
+      // month-by-month the same way vencimento does, preserving whatever offset the user set.
       const recurrenceId = `rec-${Date.now()}-${Math.round(Math.random() * 1000)}`;
       const dueDates = generateRecurringDueDates(values.dueDate, values.recurrenceMonths);
-      for (const dueDate of dueDates) {
-        await createTransaction({ ...base, dueDate, status: "pending", paidAt: null, recurrenceId });
+      const competenceDates = generateRecurringDueDates(values.competenceDate, values.recurrenceMonths);
+      for (let i = 0; i < dueDates.length; i++) {
+        await createTransaction({
+          ...base,
+          dueDate: dueDates[i],
+          competenceDate: competenceDates[i],
+          status: "pending",
+          paidAt: null,
+          recurrenceId,
+        });
       }
     } else {
       await createTransaction({
         ...base,
+        competenceDate: values.competenceDate,
         dueDate: values.dueDate,
         status: values.paid ? "paid" : "pending",
         paidAt: values.paid ? values.paidAt : null,
@@ -287,6 +300,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
               <th className="px-5 py-3 font-medium">{type === "receivable" ? "Cliente" : "Fornecedor"}</th>
               <th className="px-5 py-3 font-medium">Categoria</th>
               {type === "payable" && <th className="px-5 py-3 font-medium">Centro de Custo</th>}
+              <th className="px-5 py-3 font-medium">Competência</th>
               <th className="px-5 py-3 font-medium">Vencimento</th>
               <th className="px-5 py-3 font-medium">Valor</th>
               <th className="px-5 py-3 font-medium">Status</th>
@@ -312,6 +326,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
                   {type === "payable" && (
                     <td className="px-5 py-3 text-slate-500">{costCenterName(tx.costCenterId)}</td>
                   )}
+                  <td className="px-5 py-3 text-slate-500">{formatDate(tx.competenceDate)}</td>
                   <td className="px-5 py-3 text-slate-500">{formatDate(tx.dueDate)}</td>
                   <td className="px-5 py-3 font-medium text-slate-800">{formatCurrency(tx.amount)}</td>
                   <td className="px-5 py-3">
@@ -348,14 +363,14 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
               ))}
             {!loading && filtered.length === 0 && (
               <tr>
-                <td colSpan={type === "payable" ? 8 : 7} className="px-5 py-8 text-center text-slate-400">
+                <td colSpan={type === "payable" ? 9 : 8} className="px-5 py-8 text-center text-slate-400">
                   Nenhum lançamento encontrado.
                 </td>
               </tr>
             )}
             {loading && (
               <tr>
-                <td colSpan={type === "payable" ? 8 : 7} className="px-5 py-8 text-center text-slate-400">
+                <td colSpan={type === "payable" ? 9 : 8} className="px-5 py-8 text-center text-slate-400">
                   Carregando...
                 </td>
               </tr>
