@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -19,17 +20,37 @@ import {
   Target,
   Landmark,
   FileBarChart,
+  ChevronDown,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+interface NavLeaf {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+}
+
+interface NavGroup {
+  label: string;
+  icon: typeof LayoutDashboard;
+  children: { href: string; label: string }[];
+}
+
+type NavItem = NavLeaf | NavGroup;
+
+const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/contas-a-receber", label: "Contas a Receber", icon: ArrowDownCircle },
   { href: "/dashboard/contas-a-pagar", label: "Contas a Pagar", icon: ArrowUpCircle },
   { href: "/dashboard/fluxo-de-caixa", label: "Fluxo de Caixa", icon: Wallet },
   { href: "/dashboard/contas-bancarias", label: "Contas Bancárias", icon: Landmark },
-  { href: "/dashboard/relatorios/extrato-bancario", label: "Relatórios", icon: FileBarChart },
+  {
+    label: "Relatórios",
+    icon: FileBarChart,
+    // Novos relatórios entram aqui.
+    children: [{ href: "/dashboard/relatorios/extrato-bancario", label: "Relatório Bancário" }],
+  },
   { href: "/dashboard/importar-extrato", label: "Importar Extrato", icon: Upload },
   { href: "/dashboard/notas-fiscais", label: "Notas Fiscais", icon: Receipt },
   { href: "/dashboard/categorias", label: "Categorias", icon: Tags },
@@ -54,9 +75,69 @@ function Logo() {
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname().replace(/\/$/, "") || "/";
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+
+  function isGroupActive(item: NavGroup) {
+    return item.children.some((child) => pathname === child.href);
+  }
+
+  function toggleGroup(label: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
+
   return (
     <nav className="flex-1 space-y-1 px-3 py-2">
       {navItems.map((item) => {
+        if ("children" in item) {
+          const open = openGroups.has(item.label) || isGroupActive(item);
+          const Icon = item.icon;
+          return (
+            <div key={item.label}>
+              <button
+                type="button"
+                onClick={() => toggleGroup(item.label)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  isGroupActive(item)
+                    ? "bg-indigo-50 text-indigo-700"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                )}
+              >
+                <Icon size={18} />
+                <span className="flex-1 text-left">{item.label}</span>
+                <ChevronDown size={16} className={cn("transition-transform", open && "rotate-180")} />
+              </button>
+              {open && (
+                <div className="ml-8 mt-1 space-y-1 border-l border-slate-100 pl-3">
+                  {item.children.map((child) => {
+                    const active = pathname === child.href;
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        onClick={onNavigate}
+                        className={cn(
+                          "block rounded-lg px-3 py-1.5 text-sm transition-colors",
+                          active
+                            ? "bg-indigo-50 font-medium text-indigo-700"
+                            : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                        )}
+                      >
+                        {child.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+
         const active = pathname === item.href;
         const Icon = item.icon;
         return (
