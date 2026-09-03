@@ -70,5 +70,10 @@ service cloud.firestore {
       allow read, update, delete: if isSuperAdmin() || belongsToCompany(resource.data.companyId);
       allow create: if isSuperAdmin() || belongsToCompany(request.resource.data.companyId);
     }
+
+    match /bankAccounts/{id} {
+      allow read, update, delete: if isSuperAdmin() || belongsToCompany(resource.data.companyId);
+      allow create: if isSuperAdmin() || belongsToCompany(request.resource.data.companyId);
+    }
   }
 }

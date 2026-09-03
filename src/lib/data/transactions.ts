@@ -18,6 +18,7 @@ function toTransaction(id: string, data: DocumentData): Transaction {
     contactId: data.contactId,
     recurrenceId: data.recurrenceId ?? null,
     costCenterId: data.costCenterId ?? null,
+    bankAccountId: data.bankAccountId ?? null,
   };
 }
 
@@ -43,7 +44,12 @@ export async function updateTransactionAmount(id: string, amount: number): Promi
 
 export async function updateTransaction(
   id: string,
-  patch: Partial<Pick<Transaction, "description" | "amount" | "dueDate" | "categoryId" | "contactId" | "costCenterId">>
+  patch: Partial<
+    Pick<
+      Transaction,
+      "description" | "amount" | "dueDate" | "categoryId" | "contactId" | "costCenterId" | "bankAccountId" | "status" | "paidAt"
+    >
+  >
 ): Promise<void> {
   await updateDoc(doc(db, "transactions", id), patch);
 }

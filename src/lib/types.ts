@@ -46,6 +46,7 @@ export interface Transaction {
   contactId: string;
   recurrenceId?: string | null; // shared by every occurrence generated from the same recurring launch
   costCenterId: string | null; // required by the form for despesas, optional for receitas
+  bankAccountId: string | null;
 }
 
 export type CategoryType = "receivable" | "payable";
@@ -139,5 +140,15 @@ export interface CostCenter {
   companyId: string;
   name: string;
   description: string;
+  active: boolean;
+}
+
+export interface BankAccount {
+  id: string;
+  companyId: string;
+  name: string;
+  bank: string;
+  agency: string;
+  accountNumber: string;
   active: boolean;
 }

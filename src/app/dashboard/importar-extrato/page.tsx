@@ -130,6 +130,7 @@ export default function ImportarExtratoPage() {
           categoryId: row.categoryId,
           contactId: row.contactId,
           costCenterId: row.costCenterId || null,
+          bankAccountId: null,
         });
       }
       setImportedCount(toImport.length);

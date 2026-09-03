@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Check, Pencil, Trash2, Repeat } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Transaction, TransactionType, TransactionStatus, Category, Contact, CostCenter } from "@/lib/types";
+import { Transaction, TransactionType, TransactionStatus, Category, Contact, CostCenter, BankAccount } from "@/lib/types";
 import {
   listTransactions,
   createTransaction,
@@ -14,6 +14,7 @@ import {
 import { listCategories, createCategory } from "@/lib/data/categories";
 import { listContacts, createContact } from "@/lib/data/contacts";
 import { listCostCenters, createCostCenter } from "@/lib/data/cost-centers";
+import { listBankAccounts, createBankAccount } from "@/lib/data/bank-accounts";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { generateRecurringDueDates } from "@/lib/recurrence";
 import { STATUS_LABEL, STATUS_TONE } from "@/lib/status-labels";
@@ -44,6 +45,7 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
   const [categories, setCategories] = useState<Category[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<TransactionStatus | "all">("all");
   const [costCenterFilter, setCostCenterFilter] = useState("all");
@@ -52,16 +54,18 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
 
   async function reload() {
     if (!company) return;
-    const [txs, cats, cts, ccs] = await Promise.all([
+    const [txs, cats, cts, ccs, bas] = await Promise.all([
       listTransactions(company.id),
       listCategories(company.id),
       listContacts(company.id),
       listCostCenters(company.id),
+      listBankAccounts(company.id),
     ]);
     setTransactions(txs.filter((t) => t.type === type));
     setCategories(cats.filter((c) => c.type === type));
     setContacts(cts);
     setCostCenters(ccs);
+    setBankAccounts(bas);
     setLoading(false);
   }
 
@@ -121,6 +125,9 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
         categoryId: values.categoryId,
         contactId: values.contactId,
         costCenterId: values.costCenterId,
+        bankAccountId: values.bankAccountId,
+        status: values.paid ? "paid" : "pending",
+        paidAt: values.paid ? values.paidAt : null,
       });
       setModalOpen(false);
       setEditingTransaction(null);
@@ -133,21 +140,27 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
       type,
       description: values.description,
       amount: values.amount,
-      paidAt: null,
-      status: "pending" as const,
       categoryId: values.categoryId,
       contactId: values.contactId,
       costCenterId: values.costCenterId,
+      bankAccountId: values.bankAccountId,
     };
 
     if (values.recurring && values.recurrenceMonths > 1) {
+      // Marking "already paid" only applies to a single launch — a recurring series' future
+      // occurrences haven't happened yet, so they're always created pending.
       const recurrenceId = `rec-${Date.now()}-${Math.round(Math.random() * 1000)}`;
       const dueDates = generateRecurringDueDates(values.dueDate, values.recurrenceMonths);
       for (const dueDate of dueDates) {
-        await createTransaction({ ...base, dueDate, recurrenceId });
+        await createTransaction({ ...base, dueDate, status: "pending", paidAt: null, recurrenceId });
       }
     } else {
-      await createTransaction({ ...base, dueDate: values.dueDate });
+      await createTransaction({
+        ...base,
+        dueDate: values.dueDate,
+        status: values.paid ? "paid" : "pending",
+        paidAt: values.paid ? values.paidAt : null,
+      });
     }
     setModalOpen(false);
     await reload();
@@ -188,6 +201,20 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
     const costCenter = await createCostCenter({ companyId: company.id, name, description: "", active: true });
     setCostCenters((prev) => [...prev, costCenter]);
     return costCenter;
+  }
+
+  async function handleCreateBankAccount(name: string): Promise<BankAccount> {
+    if (!company) throw new Error("Empresa não carregada.");
+    const bankAccount = await createBankAccount({
+      companyId: company.id,
+      name,
+      bank: "",
+      agency: "",
+      accountNumber: "",
+      active: true,
+    });
+    setBankAccounts((prev) => [...prev, bankAccount]);
+    return bankAccount;
   }
 
   async function handleMarkPaid(id: string) {
@@ -347,12 +374,14 @@ export function TransactionsPage({ type, title, description }: TransactionsPageP
           categories={categories}
           contacts={contacts}
           costCenters={costCenters}
+          bankAccounts={bankAccounts}
           editing={editingTransaction}
           onCancel={closeModal}
           onSubmit={handleFormSubmit}
           onCreateCategory={handleCreateCategory}
           onCreateContact={handleCreateContact}
           onCreateCostCenter={handleCreateCostCenter}
+          onCreateBankAccount={handleCreateBankAccount}
         />
       </Modal>
     </div>

@@ -219,6 +219,7 @@ export default function NotasFiscaisPage() {
           description: `Nota fiscal nº ${parsed.number || "s/nº"} — ${counterpartyDisplayName}`,
           amount: parsed.totalValue,
           costCenterId,
+          bankAccountId: null,
           dueDate: parsed.issueDate,
           paidAt: null,
           status: "pending",
